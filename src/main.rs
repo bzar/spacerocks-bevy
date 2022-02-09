@@ -13,7 +13,7 @@ impl AsteroidSize {
             AsteroidSize::Tiny => None,
             AsteroidSize::Small => Some(AsteroidSize::Tiny),
             AsteroidSize::Medium => Some(AsteroidSize::Small),
-            AsteroidSize::Large => Some(AsteroidSize::Large)
+            AsteroidSize::Large => Some(AsteroidSize::Medium)
         }
     }
 }
@@ -28,12 +28,12 @@ enum ShipWeapon {
     Plasma
 }
 
-#[derive(Component)]
+#[derive(Component, Clone, Copy)]
 enum ShipProjectile {
     Rapid,
     Spread,
-    Beam { power: u32 },
-    Plasma { power: u32 }
+    Beam { power: f32 },
+    Plasma { power: f32 }
 }
 
 #[derive(Component)]
@@ -75,13 +75,46 @@ struct Ship {
     turn_right: bool,
     fire: bool,
     weapon: ShipWeapon,
+    weapon_rapid_level: u8,
+    weapon_spread_level: u8,
+    weapon_beam_level: u8,
+    weapon_plasma_level: u8,
     weapon_cooldown: f32
+}
+
+#[derive(Default)]
+struct ShipImages {
+    rapid: Handle<Image>,
+    rapid_accelerating: Handle<Image>,
+    rapid_left: Handle<Image>,
+    rapid_left_accelerating: Handle<Image>,
+    rapid_right: Handle<Image>,
+    rapid_right_accelerating: Handle<Image>,
+    spread: Handle<Image>,
+    spread_accelerating: Handle<Image>,
+    spread_left: Handle<Image>,
+    spread_left_accelerating: Handle<Image>,
+    spread_right: Handle<Image>,
+    spread_right_accelerating: Handle<Image>,
+    beam: Handle<Image>,
+    beam_accelerating: Handle<Image>,
+    beam_left: Handle<Image>,
+    beam_left_accelerating: Handle<Image>,
+    beam_right: Handle<Image>,
+    beam_right_accelerating: Handle<Image>,
+    plasma: Handle<Image>,
+    plasma_accelerating: Handle<Image>,
+    plasma_left: Handle<Image>,
+    plasma_left_accelerating: Handle<Image>,
+    plasma_right: Handle<Image>,
+    plasma_right_accelerating: Handle<Image>,
 }
 
 #[derive(Default)]
 struct SpriteSheets {
     asteroids: Handle<TextureAtlas>,
-    images: Vec<HandleUntyped>
+    images: Vec<HandleUntyped>,
+    ship: ShipImages
 }
 
 struct GameState {
@@ -157,7 +190,6 @@ fn loading(mut commands: Commands,
            asset_server: Res<AssetServer>,
            mut sprite_sheets: ResMut<SpriteSheets>,
            mut texture_atlases: ResMut<Assets<TextureAtlas>>,
-           mut textures: ResMut<Assets<Image>>,
            mut state: ResMut<State<AppState>>,
            mut loading_text: Local<Option<Entity>>) {
 
@@ -187,6 +219,36 @@ fn loading(mut commands: Commands,
         }
 
         sprite_sheets.asteroids = texture_atlases.add(asteroid_atlas);
+
+        sprite_sheets.ship = ShipImages {
+            rapid: asset_server.load("img/ship-rapid.png"),
+            rapid_accelerating: asset_server.load("img/ship-rapid_accelerating.png"),
+            rapid_left: asset_server.load("img/ship-rapid_left.png"),
+            rapid_left_accelerating: asset_server.load("img/ship-rapid_left_accelerating.png"),
+            rapid_right: asset_server.load("img/ship-rapid_right.png"),
+            rapid_right_accelerating: asset_server.load("img/ship-rapid_right_accelerating.png"),
+            spread: asset_server.load("img/ship-spread.png"),
+            spread_accelerating: asset_server.load("img/ship-spread_accelerating.png"),
+            // not working?
+            spread_left: asset_server.load("img/ship-spread_left.png"),
+            spread_left_accelerating: asset_server.load("img/ship-spread_left_accelerating.png"),
+            spread_right: asset_server.load("img/ship-spread_right.png"),
+            spread_right_accelerating: asset_server.load("img/ship-spread_right_accelerating.png"),
+            beam: asset_server.load("img/ship-beam.png"),
+            beam_accelerating: asset_server.load("img/ship-beam_accelerating.png"),
+            beam_left: asset_server.load("img/ship-beam_left.png"),
+            beam_left_accelerating: asset_server.load("img/ship-beam_left_accelerating.png"),
+            beam_right: asset_server.load("img/ship-beam_right.png"),
+            beam_right_accelerating: asset_server.load("img/ship-beam_right_accelerating.png"),
+            plasma: asset_server.load("img/ship-plasma.png"),
+            plasma_accelerating: asset_server.load("img/ship-plasma_accelerating.png"),
+            plasma_left: asset_server.load("img/ship-plasma_left.png"),
+            plasma_left_accelerating: asset_server.load("img/ship-plasma_left_accelerating.png"),
+            // not working?
+            plasma_right: asset_server.load("img/ship-plasma_right.png"),
+            plasma_right_accelerating: asset_server.load("img/ship-plasma_right_accelerating.png"),
+        };
+
 
         // Loading finished
         if let Some(entity) = *loading_text {
@@ -236,10 +298,10 @@ fn load_level(mut commands: Commands,
             ;
     }
 
-    let ship = Ship::default();
+    let ship = Ship { weapon_rapid_level: 4, weapon_spread_level: 4, weapon_plasma_level: 8, ..Ship::default() };
     commands
         .spawn_bundle(SpriteBundle {
-            texture: asset_server.load(ship_texture_path(&ship)),
+            texture: sprite_sheets.ship.choose(&ship),
             ..Default::default()
         })
     .insert(Moving::default())
@@ -291,15 +353,38 @@ fn ship_control_system(mut ship_query: Query<&mut Ship>, keyboard_input: Res<Inp
     let turn_left = keyboard_input.pressed(KeyCode::A);
     let turn_right = keyboard_input.pressed(KeyCode::D);
     let fire = keyboard_input.pressed(KeyCode::E);
-    
+    let weapon_rapid = keyboard_input.pressed(KeyCode::Key1);
+    let weapon_spread = keyboard_input.pressed(KeyCode::Key2);
+    let weapon_beam = keyboard_input.pressed(KeyCode::Key3);
+    let weapon_plasma = keyboard_input.pressed(KeyCode::Key4);
+
     for mut ship in ship_query.iter_mut() {
         ship.throttle = throttle;
         ship.turn_left = turn_left;
         ship.turn_right = turn_right;
         ship.fire = fire;
+        if weapon_rapid {
+            ship.weapon = ShipWeapon::Rapid;
+        } else if weapon_spread {
+            ship.weapon = ShipWeapon::Spread;
+        } else if weapon_beam {
+            ship.weapon = ShipWeapon::Beam;
+        } else if weapon_plasma {
+            ship.weapon = ShipWeapon::Plasma;
+        }
+
+
     }
 }
 
+fn spawn_projectile(commands: &mut Commands, projectile: ShipProjectile, texture: Handle<Image>, velocity: Vec2, transform: Transform, life: f32) {
+    commands
+        .spawn_bundle(SpriteBundle { texture, transform, ..Default::default() })
+        .insert(Moving { velocity, ..Default::default() })
+        .insert(Wrapping)
+        .insert(projectile)
+        .insert(Expiring { life });
+}
 fn ship_physics(mut commands: Commands, 
                 asset_server: Res<AssetServer>,
                 mut ship_query: Query<(&mut Ship, &mut Moving, &mut Transform)>,
@@ -321,13 +406,12 @@ fn ship_physics(mut commands: Commands,
         }
 
         if ship.fire && ship.weapon_cooldown <= 0.0 {
-            ship.weapon_cooldown = 0.3;
 
             let projectile = match ship.weapon {
                 ShipWeapon::Rapid => ShipProjectile::Rapid,
                 ShipWeapon::Spread => ShipProjectile::Spread,
-                ShipWeapon::Beam => ShipProjectile::Beam { power: 20 },
-                ShipWeapon::Plasma => ShipProjectile::Plasma { power: 100 },
+                ShipWeapon::Beam => ShipProjectile::Beam { power: 20.0 },
+                ShipWeapon::Plasma => ShipProjectile::Plasma { power: lerp(4.0, 20.0, (ship.weapon_plasma_level - 1) as f32 / 8.0) },
             };
             let texture_path = match ship.weapon {
                 ShipWeapon::Rapid => "img/laser.png",
@@ -336,67 +420,92 @@ fn ship_physics(mut commands: Commands,
                 ShipWeapon::Plasma => "img/plasma.png",
             };
             let texture = asset_server.load(texture_path);
-            let velocity = (transform.rotation * Vec3::Y * 500.0).truncate();
 
-            commands
-                .spawn_bundle(SpriteBundle {
-                    texture: texture,
-                    transform: Transform {
-                        translation: transform.translation.clone(),
-                        rotation: transform.rotation.clone(),
-                        ..Default::default()
-                    },
-                    ..Default::default()
-                })
-                .insert(Moving { velocity, ..Default::default() })
-                .insert(Wrapping)
-                .insert(projectile)
-                .insert(Expiring { life: 1.0 })
-                ;
-
+            match ship.weapon {
+                ShipWeapon::Rapid => {
+                    let left_turret = transform.translation + transform.rotation * Quat::from_rotation_z(1.55) * Vec3::Y * 8.0;
+                    let right_turret = transform.translation + transform.rotation * Quat::from_rotation_z(-1.55) * Vec3::Y * 8.0;
+                    let velocity = (transform.rotation * Vec3::Y * 1200.0).truncate();
+                    let left_transform = Transform { translation: left_turret, rotation: transform.rotation.clone(), ..Default::default() };
+                    let right_transform = Transform { translation: right_turret, rotation: transform.rotation.clone(), ..Default::default() };
+                    spawn_projectile(&mut commands, projectile, texture.clone(), velocity.clone(), left_transform, 0.25);
+                    spawn_projectile(&mut commands, projectile, texture, velocity, right_transform, 0.25);
+                    ship.weapon_cooldown = lerp(0.3, 0.05, (ship.weapon_rapid_level - 1) as f32 / 8.0);
+                },
+                ShipWeapon::Spread => {
+                    let spread_angle = lerp(0.314, 3.0, (ship.weapon_spread_level - 1) as f32 / 8.0);
+                    let shots = 2 * ship.weapon_spread_level + 1;
+                    for i in 0..shots {
+                        let rotation = transform.rotation * Quat::from_rotation_z(spread_angle * i as f32 / (shots - 1) as f32 - spread_angle / 2.0);
+                        let velocity = (rotation * Vec3::Y).truncate() * 1200.0;
+                        let transform = Transform { translation: transform.translation, ..Default::default() };
+                        spawn_projectile(&mut commands , projectile, texture.clone(), velocity, transform, 0.20);
+                    }
+                    ship.weapon_cooldown = lerp(0.8, 0.3, (ship.weapon_spread_level - 1) as f32 / 8.0);
+                
+                },
+                ShipWeapon::Plasma => {
+                    let power = lerp(4.0, 20.0, (ship.weapon_plasma_level - 1) as f32 / 8.0);
+                    let velocity = (transform.rotation * Vec3::Y * 1000.0).truncate();
+                    let translation = transform.translation.clone();
+                    let rotation = Quat::from_rotation_z(1.57) * transform.rotation;
+                    let scale = Vec3::splat(power / 16.0);
+                    let transform = Transform { translation, rotation, scale };
+                    spawn_projectile(&mut commands, projectile, texture, velocity, transform, 0.5);
+                    ship.weapon_cooldown = lerp(1.2, 0.8, (ship.weapon_plasma_level - 1) as f32 / 8.0);
+                }
+                _ =>  {}
+            };
         }
     }
 }
 
-fn ship_texture_path(ship: &Ship) -> &'static str {
-    match(&ship.weapon, ship.throttle, ship.turn_left, ship.turn_right) {
-        (ShipWeapon::Rapid, true, false, false) => "img/ship-rapid_accelerating.png",
-        (ShipWeapon::Rapid, false, true, false) => "img/ship-rapid_left.png",
-        (ShipWeapon::Rapid, true, true, false) => "img/ship-rapid_left_accelerating.png",
-        (ShipWeapon::Rapid, false, false, true) => "img/ship-rapid_right.png",
-        (ShipWeapon::Rapid, true, false, true) => "img/ship-rapid_right_accelerating.png",
-        (ShipWeapon::Rapid, _, _, _) => "img/ship-rapid.png",
-        (ShipWeapon::Spread, true, false, false) => "img/ship-spread_accelerating.png",
-        (ShipWeapon::Spread, false, true, false) => "img/ship-spread_left.png",
-        (ShipWeapon::Spread, true, true, false) => "img/ship-spread_left_accelerating.png",
-        (ShipWeapon::Spread, false, false, true) => "img/ship-spread_right.png",
-        (ShipWeapon::Spread, true, false, true) => "img/ship-spread_right_accelerating.png",
-        (ShipWeapon::Spread, _, _, _) => "img/ship-spread.png",
-        (ShipWeapon::Beam, true, false, false) => "img/ship-beam_accelerating.png",
-        (ShipWeapon::Beam, false, true, false) => "img/ship-beam_left.png",
-        (ShipWeapon::Beam, true, true, false) => "img/ship-beam_left_accelerating.png",
-        (ShipWeapon::Beam, false, false, true) => "img/ship-beam_right.png",
-        (ShipWeapon::Beam, true, false, true) => "img/ship-beam_right_accelerating.png",
-        (ShipWeapon::Beam, _, _, _) => "img/ship-beam.png",
-        (ShipWeapon::Plasma, true, false, false) => "img/ship-plasma_accelerating.png",
-        (ShipWeapon::Plasma, false, true, false) => "img/ship-plasma_left.png",
-        (ShipWeapon::Plasma, true, true, false) => "img/ship-plasma_left_accelerating.png",
-        (ShipWeapon::Plasma, false, false, true) => "img/ship-plasma_right.png",
-        (ShipWeapon::Plasma, true, false, true) => "img/ship-plasma_right_accelerating.png",
-        (ShipWeapon::Plasma, _, _, _) => "img/ship-plasma.png"
+fn lerp(start: f32, end: f32, position: f32) -> f32 {
+    start + (end - start) * position
+}
+
+impl ShipImages {
+    fn choose(&self, ship: &Ship) -> Handle<Image> {
+        match(&ship.weapon, ship.throttle, ship.turn_left, ship.turn_right) {
+            (ShipWeapon::Rapid, true, false, false) => &self.rapid_accelerating,
+            (ShipWeapon::Rapid, false, true, false) => &self.rapid_left,
+            (ShipWeapon::Rapid, true, true, false) => &self.rapid_left_accelerating,
+            (ShipWeapon::Rapid, false, false, true) => &self.rapid_right,
+            (ShipWeapon::Rapid, true, false, true) => &self.rapid_right_accelerating,
+            (ShipWeapon::Rapid, _, _, _) => &self.rapid,
+            (ShipWeapon::Spread, true, false, false) => &self.spread_accelerating,
+            (ShipWeapon::Spread, false, true, false) => &self.spread_left,
+            (ShipWeapon::Spread, true, true, false) => &self.spread_left_accelerating,
+            (ShipWeapon::Spread, false, false, true) => &self.spread_right,
+            (ShipWeapon::Spread, true, false, true) => &self.spread_right_accelerating,
+            (ShipWeapon::Spread, _, _, _) => &self.spread,
+            (ShipWeapon::Beam, true, false, false) => &self.beam_accelerating,
+            (ShipWeapon::Beam, false, true, false) => &self.beam_left,
+            (ShipWeapon::Beam, true, true, false) => &self.beam_left_accelerating,
+            (ShipWeapon::Beam, false, false, true) => &self.beam_right,
+            (ShipWeapon::Beam, true, false, true) => &self.beam_right_accelerating,
+            (ShipWeapon::Beam, _, _, _) => &self.beam,
+            (ShipWeapon::Plasma, true, false, false) => &self.plasma_accelerating,
+            (ShipWeapon::Plasma, false, true, false) => &self.plasma_left,
+            (ShipWeapon::Plasma, true, true, false) => &self.plasma_left_accelerating,
+            (ShipWeapon::Plasma, false, false, true) => &self.plasma_right,
+            (ShipWeapon::Plasma, true, false, true) => &self.plasma_right_accelerating,
+            (ShipWeapon::Plasma, _, _, _) => &self.plasma,
+        }.clone_weak()
     }
 }
+
 fn ship_sprite(mut ship_query: Query<(&Ship, &mut Handle<Image>)>,
-               asset_server: Res<AssetServer>) {
+               sprite_sheets: Res<SpriteSheets>) {
     for (ship, mut image) in ship_query.iter_mut() {
-        *image = asset_server.load(ship_texture_path(&ship));
+        *image = sprite_sheets.ship.choose(&ship);
     }
 }
 
 fn ship_projectile_asteroid_hit_system(mut commands: Commands,
-                                       projectiles: Query<(Entity, &ShipProjectile, &Transform)>,
-                                       mut asteroids: Query<(&mut Asteroid, &Transform)>) {
-    for (projectile_entity, _projectile, projectile_transform) in projectiles.iter() {
+                                       mut projectiles: Query<(Entity, &mut ShipProjectile, &mut Transform)>,
+                                       mut asteroids: Query<(&mut Asteroid, &Transform), Without<ShipProjectile>>) {
+    for (projectile_entity, projectile, mut projectile_transform) in projectiles.iter_mut() {
         for (mut asteroid, asteroid_transform) in asteroids.iter_mut() {
             let asteroid_radius: f32 = match asteroid.size {
                 AsteroidSize::Tiny => 4.0,
@@ -404,12 +513,32 @@ fn ship_projectile_asteroid_hit_system(mut commands: Commands,
                 AsteroidSize::Medium => 16.0,
                 AsteroidSize::Large => 24.0
             };
-            if projectile_transform.translation.distance_squared(asteroid_transform.translation) < asteroid_radius.powi(2)  {
-                commands.entity(projectile_entity).despawn();
-                if asteroid.integrity > 0 {
-                    asteroid.integrity -= 1;
+            match *projectile {
+                ShipProjectile::Rapid | ShipProjectile::Spread => {
+                    if projectile_transform.translation.distance_squared(asteroid_transform.translation) < asteroid_radius.powi(2)  {
+                        commands.entity(projectile_entity).despawn();
+                        if asteroid.integrity > 0 {
+                            asteroid.integrity -= 1;
+                        }
+                    }
+                },
+                ShipProjectile::Plasma { mut power } => {
+                    if projectile_transform.translation.distance_squared(asteroid_transform.translation) < (asteroid_radius + power).powi(2)  {
+                        let distance = projectile_transform.translation.distance(asteroid_transform.translation);
+                        let effect = (asteroid_radius + power - distance).min(asteroid.integrity as f32);
+                        power -= effect;
+                        if power <= 0.0 {
+                            commands.entity(projectile_entity).despawn();
+                        } else {
+                            projectile_transform.scale = Vec3::splat(power/16.0);
+                        }
+                        if asteroid.integrity > 0 {
+                            asteroid.integrity -= effect.ceil() as i32;
+                        }
+                    }
+                },
+                ShipProjectile::Beam { .. } => {
                 }
-                
             }
         }
     }
@@ -419,7 +548,7 @@ fn asteroid_split_system(mut commands: Commands,
                          asteroids: Query<(Entity, &Asteroid, &Transform)>,
                          sprite_sheets: Res<SpriteSheets>) {
     for (asteroid_entity, asteroid, transform) in asteroids.iter() {
-        if asteroid.integrity == 0 {
+        if asteroid.integrity <= 0 {
             commands.entity(asteroid_entity).despawn();
             if let Some(size) = asteroid.size.smaller() {
                 let direction = (transform.rotation * transform.translation).truncate().normalize();
