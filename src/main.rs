@@ -1,6 +1,5 @@
 use bevy::{
     prelude::*,
-    sprite,
     asset::LoadState,
 };
 
@@ -124,21 +123,23 @@ struct ShipImages {
     plasma_right_accelerating: Handle<Image>,
 }
 
-#[derive(Default)]
+#[derive(Default, Resource)]
 struct SpriteSheets {
     asteroids: Handle<TextureAtlas>,
     images: Vec<HandleUntyped>,
     ship: ShipImages
 }
 
+#[derive(Resource)]
 struct GameState {
     level: u32
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Copy, Default, Eq, PartialEq, Hash, States)]
 enum AppState {
     LoadLevel,
     InGame,
+    #[default]
     Loading
 }
 
@@ -147,23 +148,23 @@ fn main() {
         .add_plugins(DefaultPlugins)
         .insert_resource(SpriteSheets::default())
         .insert_resource(GameState { level: 0 })
-        .add_startup_system(init)
-        .add_state(AppState::Loading)
-        .add_system_set(SystemSet::on_update(AppState::Loading).with_system(loading))
-        .add_system_set(SystemSet::on_enter(AppState::LoadLevel).with_system(load_level))
-        .add_system_set(SystemSet::on_update(AppState::InGame)
-            .with_system(ship_control_system)
-            .with_system(ship_physics)
-            .with_system(ship_sprite)
-            .with_system(moving_system)
-            .with_system(spinning_system)
-            .with_system(wrapping_system)
-            .with_system(expiring_system)
-            .with_system(ship_projectile_asteroid_hit_system)
-            .with_system(asteroid_split_system)
-            .with_system(level_finished_system)
-            )
-        .add_system_set(SystemSet::on_exit(AppState::InGame).with_system(despawn_tagged::<LevelEntity>))
+        .add_system(init.on_startup())
+        .add_state::<AppState>()
+        .add_system(loading.in_set(OnUpdate(AppState::Loading)))
+        .add_system(load_level.in_schedule(OnEnter(AppState::LoadLevel)))
+        .add_systems((
+            ship_control_system,
+            ship_physics,
+            ship_sprite,
+            moving_system,
+            spinning_system,
+            wrapping_system,
+            expiring_system,
+            ship_projectile_asteroid_hit_system,
+            asteroid_split_system,
+            level_finished_system
+            ).in_set(OnUpdate(AppState::InGame)))
+        .add_system(despawn_tagged::<LevelEntity>.in_schedule(OnExit(AppState::InGame)))
         .run();
 }
 
@@ -177,7 +178,7 @@ fn asteroid_texture_index(variant: usize, size: AsteroidSize) -> usize {
    variant * ASTEROID_SIZES  + size as usize
 }
 
-fn asteroid_sprite_rects() -> impl Iterator<Item=sprite::Rect> {
+fn asteroid_sprite_rects() -> impl Iterator<Item=Rect> {
     let variant_rows = 5;
     let variant_sizes = [8, 16, 32, 48];
     let variant_width: u32 = variant_sizes.iter().sum();
@@ -193,7 +194,7 @@ fn asteroid_sprite_rects() -> impl Iterator<Item=sprite::Rect> {
             Some(result)
         }).map(move |(size_x, size)| {
 
-            sprite::Rect {
+            Rect {
                 min: Vec2::new((variant_x + size_x) as f32, variant_y as f32),
                 max: Vec2::new((variant_x + size_x + size - 1) as f32, (variant_y + size - 1) as f32)
             }
@@ -205,23 +206,23 @@ fn init(mut commands: Commands,
         mut sprite_sheets: ResMut<SpriteSheets>) {
 
     sprite_sheets.images = asset_server.load_folder("img").unwrap();
-    commands.spawn_bundle(OrthographicCameraBundle::new_2d());
+    commands.spawn(Camera2dBundle::default());
 }
 
 fn loading(mut commands: Commands,
            asset_server: Res<AssetServer>,
            mut sprite_sheets: ResMut<SpriteSheets>,
            mut texture_atlases: ResMut<Assets<TextureAtlas>>,
-           mut state: ResMut<State<AppState>>,
+           mut next_state: ResMut<NextState<AppState>>,
            mut loading_text: Local<Option<Entity>>) {
 
     if loading_text.is_none() {
-        *loading_text = Some(commands.spawn_bundle(TextBundle {
-            text: Text::with_section("Loading...", TextStyle {
+        *loading_text = Some(commands.spawn(TextBundle {
+            text: Text::from_section("Loading...", TextStyle {
                 font: asset_server.load("fonts/DejaVuSans.ttf"),
                 font_size: 100.0,
                 color: Color::WHITE
-            }, TextAlignment::default()),
+            }),
             style: Style {
                 ..Default::default()
             },
@@ -229,7 +230,7 @@ fn loading(mut commands: Commands,
         }).id());
     }
 
-    let handles = sprite_sheets.images.iter().map(|h| h.id);
+    let handles = sprite_sheets.images.iter().map(|h| h.id());
     if let LoadState::Loaded = asset_server.get_group_load_state(handles)
     {
         // Initialize texture atlases
@@ -273,7 +274,7 @@ fn loading(mut commands: Commands,
         if let Some(entity) = *loading_text {
             commands.entity(entity).despawn();
         }
-        state.set(AppState::LoadLevel).unwrap();
+        next_state.set(AppState::LoadLevel);
     }
 }
 
@@ -281,7 +282,7 @@ fn load_level(mut commands: Commands,
               asset_server: Res<AssetServer>,
               sprite_sheets: Res<SpriteSheets>,
               game_state: Res<GameState>,
-              mut app_state: ResMut<State<AppState>>,
+              mut app_state: ResMut<NextState<AppState>>,
               mut ships_query: Query<&mut Transform, With<Ship>>) {
 
     println!("setup level {}", game_state.level);
@@ -298,7 +299,7 @@ fn load_level(mut commands: Commands,
 
     let background_texture = asset_server.load(&format!("img/background-{}.png", game_state.level % 11 + 1));
     commands
-        .spawn_bundle(SpriteBundle {
+        .spawn(SpriteBundle {
             texture: background_texture,
             transform: Transform::from_xyz(0.0, 0.0, -0.01),
             ..Default::default()
@@ -307,7 +308,7 @@ fn load_level(mut commands: Commands,
 
     for (size, pos) in asteroid_data {
         commands
-            .spawn_bundle(SpriteSheetBundle {
+            .spawn(SpriteSheetBundle {
                 texture_atlas: sprite_sheets.asteroids.clone(),
                 sprite: TextureAtlasSprite::new(asteroid_texture_index(asteroid_variant, size)),
                 transform: Transform::from_xyz(24.0 + pos, pos * 2.0, 0.0),
@@ -324,7 +325,7 @@ fn load_level(mut commands: Commands,
     if ships_query.is_empty() {
         let ship = Ship { weapon_rapid_level: 4, weapon_spread_level: 4, weapon_plasma_level: 8, ..Ship::default() };
         commands
-            .spawn_bundle(SpriteBundle {
+            .spawn(SpriteBundle {
                 texture: sprite_sheets.ship.choose(&ship),
                 ..Default::default()
             })
@@ -338,7 +339,7 @@ fn load_level(mut commands: Commands,
         }
     }
 
-    app_state.set(AppState::InGame).unwrap();
+    app_state.set(AppState::InGame);
 }
 fn moving_system(mut moving_query: Query<(&mut Moving, &mut Transform)>, time: Res<Time>) {
     for (mut moving, mut transform) in moving_query.iter_mut() {
@@ -411,7 +412,7 @@ fn ship_control_system(mut ship_query: Query<&mut Ship>, keyboard_input: Res<Inp
 
 fn spawn_projectile(commands: &mut Commands, projectile: ShipProjectile, texture: Handle<Image>, velocity: Vec2, transform: Transform, life: f32) {
     commands
-        .spawn_bundle(SpriteBundle { texture, transform, ..Default::default() })
+        .spawn(SpriteBundle { texture, transform, ..Default::default() })
         .insert(Moving { velocity, ..Default::default() })
         .insert(Wrapping)
         .insert(projectile)
@@ -492,14 +493,14 @@ fn ship_physics(mut commands: Commands,
                         let length = 16.0;
                         let transform = Transform::from_xyz(0.0, 64.0, 0.0);
                         let tip = commands
-                            .spawn_bundle(SpriteBundle { texture, transform, ..Default::default() })
+                            .spawn(SpriteBundle { texture, transform, ..Default::default() })
                             .insert(projectile)
                             .id();
                         let texture = asset_server.load("img/continuous_beam.png");
                         let mut transform = Transform::from_xyz(0.0, length / 2.0, 0.0);
                         transform.scale.y = length / 128.0;
                         let beam = commands
-                            .spawn_bundle(SpriteBundle { texture, transform, ..Default::default() })
+                            .spawn(SpriteBundle { texture, transform, ..Default::default() })
                             .insert(Beam { length })
                             .insert(projectile)
                             .id();
@@ -616,7 +617,7 @@ fn asteroid_split_system(mut commands: Commands,
 
                 for dir in data {
                     commands
-                        .spawn_bundle(SpriteSheetBundle {
+                        .spawn(SpriteSheetBundle {
                             texture_atlas: sprite_sheets.asteroids.clone(),
                             sprite: TextureAtlasSprite { index: asteroid_texture_index(asteroid.variant, size), ..Default::default() },
                             transform,
@@ -633,10 +634,10 @@ fn asteroid_split_system(mut commands: Commands,
     }
 }
 
-fn level_finished_system(asteroids_query: Query<Entity, With<Asteroid>>, mut game_state: ResMut<GameState>, mut state: ResMut<State<AppState>>) {
+fn level_finished_system(asteroids_query: Query<Entity, With<Asteroid>>, mut game_state: ResMut<GameState>, mut state: ResMut<NextState<AppState>>) {
     if asteroids_query.is_empty() {
         game_state.level += 1;
-        state.set(AppState::LoadLevel).unwrap();
+        state.set(AppState::LoadLevel);
     }
 }
                          
