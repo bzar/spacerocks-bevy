@@ -2,6 +2,7 @@ use bevy::{
     prelude::*,
     asset::LoadState,
 };
+use rand::prelude::*;
 
 #[derive(Copy, Clone, Debug)]
 enum AsteroidSize { Tiny = 0, Small, Medium, Large }
@@ -278,6 +279,35 @@ fn loading(mut commands: Commands,
     }
 }
 
+
+fn level_asteroids(level: u32) -> impl Iterator<Item=AsteroidSize> {
+    let cost = |size| match size {
+        AsteroidSize::Tiny => 1,
+        AsteroidSize::Small => 2 + 2*1,
+        AsteroidSize::Medium => 3 + 2*2 * 4*1,
+        AsteroidSize::Large => 4 + 2*3 + 4*2 * 8*1
+    };
+
+    let budget = (level % 20 + 2) * cost(AsteroidSize::Large);
+    let sizes: &[AsteroidSize] = match level {
+        0..=4 => &[AsteroidSize::Large],
+        5..=8 => &[AsteroidSize::Large, AsteroidSize::Medium],
+        9..=12 => &[AsteroidSize::Large, AsteroidSize::Medium, AsteroidSize::Small],
+        _ => &[AsteroidSize::Large, AsteroidSize::Medium, AsteroidSize::Small, AsteroidSize::Tiny]
+    };
+    
+    sizes.iter().cycle().scan(budget, move |budget, &size| {
+        if *budget >= cost(size) {
+            *budget -= cost(size);
+            Some(size)
+        } else if *budget > 0 {
+            *budget -= 1;
+            Some(AsteroidSize::Tiny)
+        } else {
+            None
+        }
+    })
+}
 fn load_level(mut commands: Commands,
               asset_server: Res<AssetServer>,
               sprite_sheets: Res<SpriteSheets>,
@@ -288,13 +318,6 @@ fn load_level(mut commands: Commands,
     println!("setup level {}", game_state.level);
 
     let asteroid_variant = game_state.level as usize % ASTEROID_VARIANTS;
-    let asteroid_data = (0..(game_state.level+3)).map(|i|
-        (match i % 4 {
-            0 => AsteroidSize::Large,
-            1 => AsteroidSize::Medium,
-            2 => AsteroidSize::Small,
-            _ => AsteroidSize::Tiny
-        }, i as f32 * 48.0));
 
 
     let background_texture = asset_server.load(&format!("img/background-{}.png", game_state.level % 11 + 1));
@@ -306,15 +329,17 @@ fn load_level(mut commands: Commands,
         })
         .insert(LevelEntity);
 
-    for (size, pos) in asteroid_data {
+    for size in level_asteroids(game_state.level) {
+        let distance: f32 = 100.0 * (rand::random::<f32>() + 1.0);
+        let pos: Vec2 = Vec2::from_angle(rand::random::<f32>() * 2.0*std::f32::consts::TAU) * distance;
         commands
             .spawn(SpriteSheetBundle {
                 texture_atlas: sprite_sheets.asteroids.clone(),
                 sprite: TextureAtlasSprite::new(asteroid_texture_index(asteroid_variant, size)),
-                transform: Transform::from_xyz(24.0 + pos, pos * 2.0, 0.0),
+                transform: Transform::from_translation(pos.extend(0.)),
                 ..Default::default()
             })
-        .insert(Moving { velocity: Vec2::new(13.5, 15.7), ..Default::default() })
+        .insert(Moving { velocity: Vec2::new((rand::random::<f32>() - 0.5) * 10.0, (rand::random::<f32>() - 0.5) * 10.0), ..Default::default() })
             .insert(Spinning { speed: 0.2 })
             .insert(Wrapping)
             .insert(Asteroid { size, integrity: size as i32 * 4 + 1, variant: asteroid_variant })
