@@ -7,7 +7,6 @@
 - [x] Bevy 0.10 port
 - [x] Backgrounds
 - [x] Asteroids
-- [ ] UFOs
 - [x] Ship
   - [x] Movement
   - [x] Sprite
@@ -16,6 +15,7 @@
   - [x] Spread
   - [ ] Beam
   - [x] Plasma
+- [x] UFOs
 - [ ] Shield
 - [ ] Powerups
 - [ ] Collisions
@@ -26,7 +26,9 @@
   - [ ] Powerup -> Ship
 - [ ] Levels
   - [x] Change
-  - [ ] Progress
+  - [x] Progress
+  - [ ] UFO logic
+- [ ] Particle effects
 - [ ] Music
 - [ ] Sounds
 - [ ] Title

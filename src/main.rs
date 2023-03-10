@@ -1,6 +1,6 @@
 use bevy::{
     prelude::*,
-    asset::LoadState,
+    asset::LoadState, math,
 };
 use rand::prelude::*;
 
@@ -66,6 +66,15 @@ struct Asteroid {
     variant: usize
 }
 
+#[derive(Component)]
+struct Ufo {
+    start_position: Vec2,
+    end_position: Vec2,
+    frequency: f32,
+    amplitude: f32,
+    duration: f32,
+    time: f32
+}
 #[derive(Component, Default)]
 struct Moving {
     velocity: Vec2,
@@ -124,16 +133,25 @@ struct ShipImages {
     plasma_right_accelerating: Handle<Image>,
 }
 
+#[derive(Default)]
+struct UfoImages {
+    ship: Vec<Handle<Image>>,
+    laser: Handle<Image>
+}
+
 #[derive(Default, Resource)]
 struct SpriteSheets {
     asteroids: Handle<TextureAtlas>,
     images: Vec<HandleUntyped>,
-    ship: ShipImages
+    ship: ShipImages,
+    ufo: UfoImages
 }
 
 #[derive(Resource)]
 struct GameState {
-    level: u32
+    level: u32,
+    score: u32,
+    next_ufo_score: u32
 }
 
 #[derive(Debug, Clone, Copy, Default, Eq, PartialEq, Hash, States)]
@@ -148,7 +166,7 @@ fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .insert_resource(SpriteSheets::default())
-        .insert_resource(GameState { level: 0 })
+        .insert_resource(GameState { level: 0, score: 0, next_ufo_score: random_ufo_interval() })
         .add_system(init.on_startup())
         .add_state::<AppState>()
         .add_system(loading.in_set(OnUpdate(AppState::Loading)))
@@ -163,7 +181,10 @@ fn main() {
             expiring_system,
             ship_projectile_asteroid_hit_system,
             asteroid_split_system,
-            level_finished_system
+            level_finished_system,
+            ufo_spawn_system,
+            ufo_movement_system,
+            ufo_animation_system
             ).in_set(OnUpdate(AppState::InGame)))
         .add_system(despawn_tagged::<LevelEntity>.in_schedule(OnExit(AppState::InGame)))
         .run();
@@ -271,6 +292,15 @@ fn loading(mut commands: Commands,
             plasma_right_accelerating: asset_server.load("img/ship-plasma_right_accelerating.png"),
         };
 
+        sprite_sheets.ufo = UfoImages {
+            ship: vec![
+                asset_server.load("img/ufo_1.png"),
+                asset_server.load("img/ufo_2.png"),
+                asset_server.load("img/ufo_3.png"),
+                asset_server.load("img/ufo_4.png")
+            ],
+            laser: asset_server.load("img/ufolaser.png")
+        };
         // Loading finished
         if let Some(entity) = *loading_text {
             commands.entity(entity).despawn();
@@ -631,9 +661,11 @@ fn ship_projectile_asteroid_hit_system(mut commands: Commands,
 
 fn asteroid_split_system(mut commands: Commands,
                          asteroids: Query<(Entity, &Asteroid, &Transform)>,
-                         sprite_sheets: Res<SpriteSheets>) {
+                         sprite_sheets: Res<SpriteSheets>,
+                         mut game_state: ResMut<GameState>) {
     for (asteroid_entity, asteroid, transform) in asteroids.iter() {
         if asteroid.integrity <= 0 {
+            game_state.score += asteroid_score(asteroid.size);
             commands.entity(asteroid_entity).despawn();
             if let Some(size) = asteroid.size.smaller() {
                 let direction = (transform.rotation * transform.translation).truncate().normalize();
@@ -666,3 +698,69 @@ fn level_finished_system(asteroids_query: Query<Entity, With<Asteroid>>, mut gam
     }
 }
                          
+
+fn ufo_spawn_system(mut commands: Commands, mut game_state: ResMut<GameState>, sprite_sheets: Res<SpriteSheets>) {
+    if game_state.score >= game_state.next_ufo_score {
+        game_state.next_ufo_score += random_ufo_interval();
+        let horizontal: bool = rand::random();
+        let direction: bool = rand::random();
+        let span = if horizontal { 800.0 } else { 480.0 };
+        let d = rand::random::<f32>() * span;
+        let position = Vec2::new(if !horizontal { d } else if direction { 0. } else { 800. },
+                                 if horizontal { d } else if direction { 0. } else { 480. })
+            - Vec2::new(400.0, 240.0);
+
+        let start_position = position;
+        let end_position = -position;
+        let frequency = rand::random::<f32>() * 5.0;
+        let amplitude = rand::random::<f32>() * 90.0 + 10.0;
+        let duration = 20.0 - 10.0 * (game_state.level as f32 / 40.0).min(1.0);
+        let time = 0.0;
+        let transform = Transform::from_translation(start_position.extend(0.));
+        let texture = sprite_sheets.ufo.ship[0].clone();
+        commands
+            .spawn(SpriteBundle { texture, transform, ..Default::default() })
+            .insert(Ufo { start_position, end_position, frequency, amplitude, duration, time });
+    }
+}
+
+fn ufo_movement_system(mut commands: Commands, mut ufos_query: Query<(Entity, &mut Ufo, &mut Transform)>, time: Res<Time>) {
+    for (entity, mut ufo, mut transform) in ufos_query.iter_mut() {
+        ufo.time += time.delta_seconds();
+        let t = ufo.time / ufo.duration;
+        let journey = ufo.end_position - ufo.start_position;
+        let deviation = ufo.amplitude * f32::sin(ufo.frequency * std::f32::consts::TAU * t);
+        let position = ufo.start_position
+            + journey * t
+            + journey.normalize().perp() * deviation;
+        let angle = 10.0 * std::f32::consts::TAU * t;
+        let rotation = Quat::from_rotation_z(angle);
+        *transform = Transform::from_rotation(rotation)
+            .with_translation(position.extend(0.));
+
+        if ufo.time >= ufo.duration {
+            commands.entity(entity).despawn();
+        }
+    }
+
+}
+fn ufo_animation_system(mut ufos_query: Query<(&Ufo, &mut Handle<Image>)>,sprite_sheets: Res<SpriteSheets>) {
+    let frame_duration = 1./5.;
+    for (ufo, mut image) in ufos_query.iter_mut() {
+        let frame = (ufo.time / frame_duration) as usize % sprite_sheets.ufo.ship.len();
+        *image = sprite_sheets.ufo.ship[frame].clone();
+    }
+}
+fn random_ufo_interval() -> u32 {
+    const MIN: f32 = 400.0;
+    const MAX: f32 = 800.0;
+    (rand::random::<f32>() * (MAX - MIN) + MIN) as u32
+}
+fn asteroid_score(size: AsteroidSize) -> u32 {
+    match size {
+        AsteroidSize::Tiny => 50,
+        AsteroidSize::Small => 100,
+        AsteroidSize::Medium => 150,
+        AsteroidSize::Large => 200
+    }
+}
