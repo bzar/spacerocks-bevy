@@ -6,6 +6,15 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bevy = { version = "0.10" }
+#bevy = { version = "0.10" }
+bevy = { version = "0.10.0", features = ["dynamic_linking"] }
 rand = "0.8.5"
-#bevy = { version = "0.6", default-features = false, features = [ "render", "bevy_winit", "x11" ] }
+
+# Enable a small amount of optimization in debug mode
+[profile.dev]
+opt-level = 1
+
+# Enable high optimizations for dependencies (incl. Bevy), but not for our code:
+[profile.dev.package."*"]
+opt-level = 3
+
