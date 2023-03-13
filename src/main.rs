@@ -83,7 +83,7 @@ struct Ufo {
     time: f32,
     shoot_delay: f32,
     shoot_accuracy: f32,
-    life: u32,
+    life: i32,
 }
 #[derive(Component)]
 struct UfoLaser;
@@ -204,6 +204,7 @@ fn main() {
                 ufo_movement_system,
                 ufo_animation_system,
                 ufo_shoot_system,
+                ship_projectile_ufo_hit_system,
             )
                 .in_set(OnUpdate(AppState::InGame)),
         )
@@ -997,5 +998,56 @@ fn asteroid_score(size: AsteroidSize) -> u32 {
         AsteroidSize::Small => 100,
         AsteroidSize::Medium => 150,
         AsteroidSize::Large => 200,
+    }
+}
+fn ship_projectile_ufo_hit_system(
+    mut commands: Commands,
+    mut projectiles: Query<(Entity, &mut ShipProjectile, &mut Transform)>,
+    mut ufos: Query<(Entity, &mut Ufo, &Transform), Without<ShipProjectile>>,
+) {
+    for (projectile_entity, projectile, mut projectile_transform) in projectiles.iter_mut() {
+        for (ufo_entity, mut ufo, ufo_transform) in ufos.iter_mut() {
+            let ufo_radius: f32 = 16.0;
+            match *projectile {
+                ShipProjectile::Rapid | ShipProjectile::Spread => {
+                    if projectile_transform
+                        .translation
+                        .distance_squared(ufo_transform.translation)
+                        < ufo_radius.powi(2)
+                    {
+                        commands.entity(projectile_entity).despawn();
+                        if ufo.life > 0 {
+                            ufo.life -= 1;
+                        }
+                    }
+                }
+                ShipProjectile::Plasma { mut power } => {
+                    if projectile_transform
+                        .translation
+                        .distance_squared(ufo_transform.translation)
+                        < (ufo_radius + power).powi(2)
+                    {
+                        let distance = projectile_transform
+                            .translation
+                            .distance(ufo_transform.translation);
+                        let effect = (ufo_radius + power - distance).min(ufo.life as f32);
+                        power -= effect;
+                        if power <= 0.0 {
+                            commands.entity(projectile_entity).despawn();
+                        } else {
+                            projectile_transform.scale = Vec3::splat(power / 16.0);
+                        }
+                        if ufo.life > 0 {
+                            ufo.life -= effect.ceil() as i32;
+                        }
+                    }
+                }
+                ShipProjectile::Beam { .. } => {}
+            }
+            if ufo.life <= 0 {
+                commands.entity(ufo_entity).despawn();
+                break;
+            }
+        }
     }
 }
