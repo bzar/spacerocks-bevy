@@ -17,6 +17,14 @@ impl AsteroidSize {
             AsteroidSize::Large => Some(AsteroidSize::Medium),
         }
     }
+    fn radius(&self) -> f32 {
+        match self {
+            AsteroidSize::Tiny => 4.0,
+            AsteroidSize::Small => 8.0,
+            AsteroidSize::Medium => 16.0,
+            AsteroidSize::Large => 24.0,
+        }
+    }
 }
 
 const ASTEROID_SIZES: usize = 4;
@@ -243,7 +251,13 @@ fn main() {
             )
                 .in_set(OnUpdate(AppState::InGame)),
         )
-        .add_systems((ship_powerup_collision_system,).in_set(OnUpdate(AppState::InGame)))
+        .add_systems(
+            (
+                ship_powerup_collision_system,
+                ship_asteroid_collision_system,
+            )
+                .in_set(OnUpdate(AppState::InGame)),
+        )
         .add_system(despawn_tagged::<LevelEntity>.in_schedule(OnExit(AppState::InGame)))
         .run();
 }
@@ -480,6 +494,7 @@ fn load_level(
             weapon_rapid_level: 4,
             weapon_spread_level: 4,
             weapon_plasma_level: 8,
+            shield_level: 2,
             ..Ship::default()
         };
         commands
@@ -1187,6 +1202,33 @@ fn ship_powerup_collision_system(
                     Powerup::Shield => ship.shield_level += 1,
                 }
                 commands.entity(powerup_entity).despawn();
+            }
+        }
+    }
+}
+
+fn ship_asteroid_collision_system(
+    mut ships_query: Query<(&mut Ship, &mut Transform, &mut Moving)>,
+    asteroids_query: Query<(&Asteroid, &Transform, &Moving), Without<Ship>>,
+) {
+    for (mut ship, mut ship_transform, mut ship_moving) in ships_query.iter_mut() {
+        let ship_position = ship_transform.translation.truncate();
+        for (asteroid, asteroid_transform, asteroid_moving) in asteroids_query.iter() {
+            let asteroid_position = asteroid_transform.translation.truncate();
+            let asteroid_radius: f32 = asteroid.size.radius();
+            let distance_sq = ship_position.distance_squared(asteroid_position);
+            if distance_sq <= asteroid_radius.powf(2.0) {
+                if ship.shield_level > 0 {
+                    ship.shield_level -= 1;
+                    let diff = ship_position - asteroid_position;
+                    let speed = (asteroid_moving.velocity.project_onto(diff)
+                        - ship_moving.velocity)
+                        .length();
+                    ship_moving.velocity = diff.normalize() * speed;
+                } else {
+                    ship_transform.translation = Vec3::ZERO;
+                    ship.lives = ship.lives.max(1) - 1; //FIXME
+                }
             }
         }
     }
