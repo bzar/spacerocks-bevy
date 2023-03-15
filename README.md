@@ -18,6 +18,7 @@
 - [x] UFOs
 - [ ] Shield
 - [ ] Powerups
+- [ ] Game HUD
 - [ ] Collisions
   - [x] Weapon -> Asteroid
   - [x] Weapon -> UFO

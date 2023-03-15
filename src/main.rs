@@ -88,6 +88,17 @@ struct Ufo {
 #[derive(Component)]
 struct UfoLaser;
 
+#[derive(Component)]
+enum Powerup {
+    Laser = 0,
+    Spread,
+    Beam,
+    Plasma,
+    ExtraLife,
+    LoseLife,
+    Shield,
+}
+
 #[derive(Component, Default)]
 struct Moving {
     velocity: Vec2,
@@ -116,6 +127,8 @@ struct Ship {
     weapon_beam_level: u8,
     weapon_plasma_level: u8,
     weapon_cooldown: f32,
+    shield_level: u8,
+    lives: u8,
 }
 
 #[derive(Default)]
@@ -152,12 +165,24 @@ struct UfoImages {
     laser: Handle<Image>,
 }
 
+#[derive(Default)]
+struct PowerupImages {
+    laser: Handle<Image>,
+    spread: Handle<Image>,
+    beam: Handle<Image>,
+    plasma: Handle<Image>,
+    extra_life: Handle<Image>,
+    lose_life: Handle<Image>,
+    shield: Handle<Image>,
+}
+
 #[derive(Default, Resource)]
 struct SpriteSheets {
     asteroids: Handle<TextureAtlas>,
     images: Vec<HandleUntyped>,
     ship: ShipImages,
     ufo: UfoImages,
+    powerup: PowerupImages,
 }
 
 #[derive(Resource)]
@@ -208,6 +233,7 @@ fn main() {
             )
                 .in_set(OnUpdate(AppState::InGame)),
         )
+        .add_systems((ship_powerup_collision_system,).in_set(OnUpdate(AppState::InGame)))
         .add_system(despawn_tagged::<LevelEntity>.in_schedule(OnExit(AppState::InGame)))
         .run();
 }
@@ -333,6 +359,16 @@ fn loading(
                 asset_server.load("img/ufo_4.png"),
             ],
             laser: asset_server.load("img/ufolaser.png"),
+        };
+
+        sprite_sheets.powerup = PowerupImages {
+            laser: asset_server.load("img/powerup_laser.png"),
+            spread: asset_server.load("img/powerup_spread.png"),
+            beam: asset_server.load("img/powerup_beam.png"),
+            plasma: asset_server.load("img/powerup_plasma.png"),
+            extra_life: asset_server.load("img/powerup_extralife.png"),
+            lose_life: asset_server.load("img/powerup_loselife.png"),
+            shield: asset_server.load("img/powerup_shield.png"),
         };
         // Loading finished
         if let Some(entity) = *loading_text {
@@ -1004,6 +1040,7 @@ fn ship_projectile_ufo_hit_system(
     mut commands: Commands,
     mut projectiles: Query<(Entity, &mut ShipProjectile, &mut Transform)>,
     mut ufos: Query<(Entity, &mut Ufo, &Transform), Without<ShipProjectile>>,
+    sprite_sheets: Res<SpriteSheets>,
 ) {
     for (projectile_entity, projectile, mut projectile_transform) in projectiles.iter_mut() {
         for (ufo_entity, mut ufo, ufo_transform) in ufos.iter_mut() {
@@ -1045,8 +1082,100 @@ fn ship_projectile_ufo_hit_system(
                 ShipProjectile::Beam { .. } => {}
             }
             if ufo.life <= 0 {
+                let velocity =
+                    Vec2::from_angle(rand::random::<f32>() * std::f32::consts::TAU) * 30.0; // FIXME
+                spawn_powerup(
+                    rand::random(),
+                    ufo_transform.translation.truncate(),
+                    velocity,
+                    5.0,
+                    &mut commands,
+                    &sprite_sheets.powerup,
+                );
                 commands.entity(ufo_entity).despawn();
                 break;
+            }
+        }
+    }
+}
+
+impl rand::distributions::Distribution<Powerup> for rand::distributions::Standard {
+    fn sample<R: rand::Rng + ?Sized>(&self, rng: &mut R) -> Powerup {
+        use Powerup::*;
+        match rng.gen_range(0..7) {
+            0 => Laser,
+            1 => Spread,
+            2 => Beam,
+            3 => Plasma,
+            4 => ExtraLife,
+            5 => LoseLife,
+            6 => Shield,
+            _ => unreachable!(),
+        }
+    }
+}
+fn spawn_powerup(
+    powerup: Powerup,
+    position: Vec2,
+    velocity: Vec2,
+    life: f32,
+    commands: &mut Commands,
+    sprite_sheet: &PowerupImages,
+) {
+    let texture = match powerup {
+        Powerup::Laser => &sprite_sheet.laser,
+        Powerup::Spread => &sprite_sheet.spread,
+        Powerup::Beam => &sprite_sheet.beam,
+        Powerup::Plasma => &sprite_sheet.plasma,
+        Powerup::ExtraLife => &sprite_sheet.extra_life,
+        Powerup::LoseLife => &sprite_sheet.lose_life,
+        Powerup::Shield => &sprite_sheet.shield,
+    }
+    .clone();
+    let transform = Transform::from_translation(position.extend(0.));
+    commands
+        .spawn(SpriteBundle {
+            texture,
+            transform,
+            ..Default::default()
+        })
+        .insert(powerup)
+        .insert(Moving {
+            velocity,
+            acceleration: Vec2::ZERO,
+        })
+        .insert(Expiring { life })
+        .insert(Wrapping)
+        .insert(LevelEntity);
+}
+
+fn ship_powerup_collision_system(
+    mut commands: Commands,
+    mut ships_query: Query<(&mut Ship, &Transform)>,
+    powerups_query: Query<(Entity, &Powerup, &Transform)>,
+) {
+    for (mut ship, ship_transform) in ships_query.iter_mut() {
+        for (powerup_entity, powerup, powerup_transform) in powerups_query.iter() {
+            let distance_sq = ship_transform
+                .translation
+                .distance_squared(powerup_transform.translation);
+            if distance_sq <= 32.0f32.powf(2.0) {
+                match powerup {
+                    Powerup::Laser => {
+                        ship.weapon_rapid_level = (ship.weapon_rapid_level + 1).min(8)
+                    }
+                    Powerup::Spread => {
+                        ship.weapon_spread_level = (ship.weapon_spread_level + 1).min(8)
+                    }
+                    Powerup::Beam => ship.weapon_beam_level = (ship.weapon_beam_level + 1).min(8),
+                    Powerup::Plasma => {
+                        ship.weapon_plasma_level = (ship.weapon_plasma_level + 1).min(8)
+                    }
+                    Powerup::ExtraLife => ship.lives += 1,
+                    Powerup::LoseLife => ship.lives -= 1,
+                    Powerup::Shield => ship.shield_level += 1,
+                }
+                commands.entity(powerup_entity).despawn();
             }
         }
     }
