@@ -30,6 +30,7 @@ impl AsteroidSize {
 const ASTEROID_SIZES: usize = 4;
 const ASTEROID_VARIANTS: usize = 12;
 
+#[derive(PartialEq, Eq)]
 enum ShipWeapon {
     Rapid,
     Spread,
@@ -133,6 +134,9 @@ struct Wrapping;
 
 #[derive(Component)]
 struct LevelEntity;
+
+#[derive(Component)]
+struct HUD;
 
 #[derive(Component, Default)]
 struct Ship {
@@ -255,6 +259,7 @@ fn main() {
             (
                 ship_powerup_collision_system,
                 ship_asteroid_collision_system,
+                update_hud_system,
             )
                 .in_set(OnUpdate(AppState::InGame)),
         )
@@ -493,6 +498,7 @@ fn load_level(
         let ship = Ship {
             weapon_rapid_level: 4,
             weapon_spread_level: 4,
+            weapon_beam_level: 4,
             weapon_plasma_level: 8,
             shield_level: 2,
             ..Ship::default()
@@ -511,6 +517,17 @@ fn load_level(
         }
     }
 
+    commands
+        .spawn(TextBundle::from_section(
+            "UI goes here",
+            TextStyle {
+                font: asset_server.load("fonts/DejaVuSans.ttf"),
+                font_size: 20.0,
+                color: Color::WHITE,
+            },
+        ))
+        .insert(HUD)
+        .insert(LevelEntity);
     app_state.set(AppState::InGame);
 }
 fn moving_system(mut moving_query: Query<(&mut Moving, &mut Transform)>, time: Res<Time>) {
@@ -1232,4 +1249,51 @@ fn ship_asteroid_collision_system(
             }
         }
     }
+}
+
+fn update_hud_system(
+    ships_query: Query<&Ship>,
+    game_state: Res<GameState>,
+    mut hud_query: Query<&mut Text, With<HUD>>,
+) {
+    let ship = ships_query.single();
+    let mut hud = hud_query.single_mut();
+    let mut weapons = Vec::new();
+
+    if ship.weapon_rapid_level > 0 {
+        if ship.weapon == ShipWeapon::Rapid {
+            weapons.push(format!("[L{}]", ship.weapon_rapid_level))
+        } else {
+            weapons.push(format!("L{}", ship.weapon_rapid_level))
+        }
+    }
+    if ship.weapon_spread_level > 0 {
+        if ship.weapon == ShipWeapon::Spread {
+            weapons.push(format!("[S{}]", ship.weapon_spread_level))
+        } else {
+            weapons.push(format!("S{}", ship.weapon_spread_level))
+        }
+    }
+    if ship.weapon_beam_level > 0 {
+        if ship.weapon == ShipWeapon::Beam {
+            weapons.push(format!("[B{}]", ship.weapon_beam_level))
+        } else {
+            weapons.push(format!("B{}", ship.weapon_beam_level))
+        }
+    }
+    if ship.weapon_plasma_level > 0 {
+        if ship.weapon == ShipWeapon::Plasma {
+            weapons.push(format!("[P{}]", ship.weapon_plasma_level))
+        } else {
+            weapons.push(format!("P{}", ship.weapon_plasma_level))
+        }
+    }
+
+    hud.sections[0].value = format!(
+        "Level: {} | Score: {} | Lives: {} | Weapons: {}",
+        game_state.level,
+        game_state.score,
+        ship.lives,
+        &weapons.join(" ")
+    );
 }
