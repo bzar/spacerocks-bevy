@@ -99,6 +99,16 @@ enum Powerup {
     Shield,
 }
 
+#[derive(Bundle)]
+struct PowerupBundle {
+    sprite_bundle: SpriteBundle,
+    powerup: Powerup,
+    moving: Moving,
+    expiring: Expiring,
+    wrapping: Wrapping,
+    level_entity: LevelEntity,
+}
+
 #[derive(Component, Default)]
 struct Moving {
     velocity: Vec2,
@@ -1084,14 +1094,13 @@ fn ship_projectile_ufo_hit_system(
             if ufo.life <= 0 {
                 let velocity =
                     Vec2::from_angle(rand::random::<f32>() * std::f32::consts::TAU) * 30.0; // FIXME
-                spawn_powerup(
+                commands.spawn(PowerupBundle::new(
                     rand::random(),
                     ufo_transform.translation.truncate(),
                     velocity,
                     5.0,
-                    &mut commands,
                     &sprite_sheets.powerup,
-                );
+                ));
                 commands.entity(ufo_entity).despawn();
                 break;
             }
@@ -1114,39 +1123,41 @@ impl rand::distributions::Distribution<Powerup> for rand::distributions::Standar
         }
     }
 }
-fn spawn_powerup(
-    powerup: Powerup,
-    position: Vec2,
-    velocity: Vec2,
-    life: f32,
-    commands: &mut Commands,
-    sprite_sheet: &PowerupImages,
-) {
-    let texture = match powerup {
-        Powerup::Laser => &sprite_sheet.laser,
-        Powerup::Spread => &sprite_sheet.spread,
-        Powerup::Beam => &sprite_sheet.beam,
-        Powerup::Plasma => &sprite_sheet.plasma,
-        Powerup::ExtraLife => &sprite_sheet.extra_life,
-        Powerup::LoseLife => &sprite_sheet.lose_life,
-        Powerup::Shield => &sprite_sheet.shield,
+impl PowerupBundle {
+    fn new(
+        powerup: Powerup,
+        position: Vec2,
+        velocity: Vec2,
+        life: f32,
+        sprite_sheet: &PowerupImages,
+    ) -> Self {
+        let texture = match powerup {
+            Powerup::Laser => &sprite_sheet.laser,
+            Powerup::Spread => &sprite_sheet.spread,
+            Powerup::Beam => &sprite_sheet.beam,
+            Powerup::Plasma => &sprite_sheet.plasma,
+            Powerup::ExtraLife => &sprite_sheet.extra_life,
+            Powerup::LoseLife => &sprite_sheet.lose_life,
+            Powerup::Shield => &sprite_sheet.shield,
+        }
+        .clone();
+        let transform = Transform::from_translation(position.extend(0.));
+        Self {
+            sprite_bundle: SpriteBundle {
+                texture,
+                transform,
+                ..Default::default()
+            },
+            powerup,
+            moving: Moving {
+                velocity,
+                acceleration: Vec2::ZERO,
+            },
+            expiring: Expiring { life },
+            wrapping: Wrapping,
+            level_entity: LevelEntity,
+        }
     }
-    .clone();
-    let transform = Transform::from_translation(position.extend(0.));
-    commands
-        .spawn(SpriteBundle {
-            texture,
-            transform,
-            ..Default::default()
-        })
-        .insert(powerup)
-        .insert(Moving {
-            velocity,
-            acceleration: Vec2::ZERO,
-        })
-        .insert(Expiring { life })
-        .insert(Wrapping)
-        .insert(LevelEntity);
 }
 
 fn ship_powerup_collision_system(
