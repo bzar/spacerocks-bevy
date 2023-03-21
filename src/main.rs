@@ -272,6 +272,7 @@ fn main() {
                 ship_projectile_ufo_hit_system,
                 ship_powerup_collision_system,
                 ship_asteroid_collision_system,
+                ship_ufo_laser_collision_system,
                 level_finished_system,
             )
                 .in_set(OnUpdate(AppState::InGame)),
@@ -1288,6 +1289,33 @@ fn ship_asteroid_collision_system(
                     let speed = (asteroid_moving.velocity.project_onto(diff)
                         - ship_moving.velocity)
                         .length();
+                    ship_moving.velocity = diff.normalize() * speed;
+                } else {
+                    ship_transform.translation = Vec3::ZERO;
+                    ship.lives = ship.lives.max(1) - 1; //FIXME
+                }
+            }
+        }
+    }
+}
+
+fn ship_ufo_laser_collision_system(
+    mut ships_query: Query<(&mut Ship, &mut Transform, &mut Moving)>,
+    ufo_laser_query: Query<(&Transform, &Moving), (With<UfoLaser>, Without<Ship>)>,
+) {
+    for (mut ship, mut ship_transform, mut ship_moving) in ships_query.iter_mut() {
+        let ship_position = ship_transform.translation.truncate();
+        for (laser_transform, laser_moving) in ufo_laser_query.iter() {
+            let laser_position = laser_transform.translation.truncate();
+            let laser_radius: f32 = 1.0;
+            let ship_radius: f32 = 16.0;
+            let distance_sq = ship_position.distance_squared(laser_position);
+            if distance_sq <= (laser_radius + ship_radius).powf(2.0) {
+                if ship.shield_level > 0 {
+                    ship.shield_level -= 1;
+                    let diff = ship_position - laser_position;
+                    let speed =
+                        (laser_moving.velocity.project_onto(diff) - ship_moving.velocity).length();
                     ship_moving.velocity = diff.normalize() * speed;
                 } else {
                     ship_transform.translation = Vec3::ZERO;
