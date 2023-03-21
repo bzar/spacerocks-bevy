@@ -162,6 +162,9 @@ struct Ship {
     lives: u8,
 }
 
+#[derive(Component)]
+struct ShipShield;
+
 #[derive(Default)]
 struct ShipImages {
     rapid: Handle<Image>,
@@ -188,6 +191,7 @@ struct ShipImages {
     plasma_left_accelerating: Handle<Image>,
     plasma_right: Handle<Image>,
     plasma_right_accelerating: Handle<Image>,
+    shield: Handle<Image>,
 }
 
 #[derive(Default)]
@@ -249,6 +253,7 @@ fn main() {
                 ship_control_system,
                 ship_physics,
                 ship_sprite,
+                shield_sprite,
                 moving_system,
                 spinning_system,
                 wrapping_system,
@@ -393,6 +398,7 @@ fn loading(
             plasma_left_accelerating: asset_server.load("img/ship-plasma_left_accelerating.png"),
             plasma_right: asset_server.load("img/ship-plasma_right.png"),
             plasma_right_accelerating: asset_server.load("img/ship-plasma_right_accelerating.png"),
+            shield: asset_server.load("img/shield.png"),
         };
 
         sprite_sheets.ufo = UfoImages {
@@ -525,7 +531,15 @@ fn load_level(
             })
             .insert(Moving::default())
             .insert(Wrapping)
-            .insert(ship);
+            .insert(ship)
+            .with_children(|ship| {
+                ship.spawn(SpriteBundle {
+                    visibility: Visibility::Hidden,
+                    texture: sprite_sheets.ship.shield.clone(),
+                    ..Default::default()
+                })
+                .insert(ShipShield);
+            });
     } else {
         for mut transform in ships_query.iter_mut() {
             transform.translation = Vec3::ZERO;
@@ -837,6 +851,24 @@ fn ship_sprite(
 ) {
     for (ship, mut image) in ship_query.iter_mut() {
         *image = sprite_sheets.ship.choose(&ship);
+    }
+}
+
+fn shield_sprite(
+    mut shield_query: Query<(&Parent, &mut Visibility), With<ShipShield>>,
+    ship_query: Query<&Ship>,
+) {
+    for (parent, mut visibility) in shield_query.iter_mut() {
+        let ship = ship_query.get(parent.get());
+        if ship
+            .expect("ShipShield should have a Ship parent")
+            .shield_level
+            > 0
+        {
+            *visibility = Visibility::Visible;
+        } else {
+            *visibility = Visibility::Hidden;
+        }
     }
 }
 
