@@ -1,231 +1,12 @@
 use bevy::{asset::LoadState, prelude::*};
 
-#[derive(Copy, Clone, Debug)]
-enum AsteroidSize {
-    Tiny = 0,
-    Small,
-    Medium,
-    Large,
-}
+mod bundles;
+mod components;
+mod resources;
 
-impl AsteroidSize {
-    fn smaller(&self) -> Option<AsteroidSize> {
-        match self {
-            AsteroidSize::Tiny => None,
-            AsteroidSize::Small => Some(AsteroidSize::Tiny),
-            AsteroidSize::Medium => Some(AsteroidSize::Small),
-            AsteroidSize::Large => Some(AsteroidSize::Medium),
-        }
-    }
-    fn radius(&self) -> f32 {
-        match self {
-            AsteroidSize::Tiny => 4.0,
-            AsteroidSize::Small => 8.0,
-            AsteroidSize::Medium => 16.0,
-            AsteroidSize::Large => 24.0,
-        }
-    }
-}
-
-const ASTEROID_SIZES: usize = 4;
-const ASTEROID_VARIANTS: usize = 12;
-
-#[derive(Copy, Clone, PartialEq, Eq)]
-enum ShipWeapon {
-    Rapid,
-    Spread,
-    Beam,
-    Plasma,
-}
-
-#[derive(Component, Clone, Copy)]
-enum ShipProjectile {
-    Rapid,
-    Spread,
-    Beam { power: f32 },
-    Plasma { power: f32 },
-}
-
-#[derive(Component)]
-struct Beam {
-    length: f32,
-}
-
-#[derive(Clone, Copy)]
-enum ShipTurn {
-    Neutral,
-    Left,
-    Right,
-}
-
-impl Default for ShipTurn {
-    fn default() -> Self {
-        Self::Neutral
-    }
-}
-
-#[derive(Component)]
-struct Expiring {
-    life: f32,
-}
-
-impl Default for ShipWeapon {
-    fn default() -> Self {
-        Self::Rapid
-    }
-}
-
-#[derive(Component)]
-struct Asteroid {
-    size: AsteroidSize,
-    integrity: i32,
-    variant: usize,
-}
-
-#[derive(Component)]
-struct Ufo {
-    start_position: Vec2,
-    end_position: Vec2,
-    frequency: f32,
-    amplitude: f32,
-    duration: f32,
-    time: f32,
-    shoot_delay: f32,
-    shoot_accuracy: f32,
-    life: i32,
-}
-#[derive(Component)]
-struct UfoLaser;
-
-#[derive(Component)]
-enum Powerup {
-    Laser = 0,
-    Spread,
-    Beam,
-    Plasma,
-    ExtraLife,
-    LoseLife,
-    Shield,
-}
-
-#[derive(Bundle)]
-struct PowerupBundle {
-    sprite_bundle: SpriteBundle,
-    powerup: Powerup,
-    moving: Moving,
-    expiring: Expiring,
-    wrapping: Wrapping,
-    level_entity: LevelEntity,
-}
-
-#[derive(Component, Default)]
-struct Moving {
-    velocity: Vec2,
-    acceleration: Vec2,
-}
-
-#[derive(Component)]
-struct Spinning {
-    speed: f32,
-}
-
-#[derive(Component)]
-struct Wrapping;
-
-#[derive(Component)]
-struct LevelEntity;
-
-#[derive(Component, Default, PartialEq, Eq)]
-struct HUD {
-    level: u32,
-    score: u32,
-    lives: u8,
-    weapon: ShipWeapon,
-    weapon_rapid_level: u8,
-    weapon_spread_level: u8,
-    weapon_beam_level: u8,
-    weapon_plasma_level: u8,
-}
-
-#[derive(Component, Default)]
-struct Ship {
-    throttle: bool,
-    turn: ShipTurn,
-    fire: bool,
-    weapon: ShipWeapon,
-    weapon_rapid_level: u8,
-    weapon_spread_level: u8,
-    weapon_beam_level: u8,
-    weapon_plasma_level: u8,
-    weapon_cooldown: f32,
-    shield_level: u8,
-    lives: u8,
-}
-
-#[derive(Component)]
-struct ShipShield;
-
-#[derive(Default)]
-struct ShipImages {
-    rapid: Handle<Image>,
-    rapid_accelerating: Handle<Image>,
-    rapid_left: Handle<Image>,
-    rapid_left_accelerating: Handle<Image>,
-    rapid_right: Handle<Image>,
-    rapid_right_accelerating: Handle<Image>,
-    spread: Handle<Image>,
-    spread_accelerating: Handle<Image>,
-    spread_left: Handle<Image>,
-    spread_left_accelerating: Handle<Image>,
-    spread_right: Handle<Image>,
-    spread_right_accelerating: Handle<Image>,
-    beam: Handle<Image>,
-    beam_accelerating: Handle<Image>,
-    beam_left: Handle<Image>,
-    beam_left_accelerating: Handle<Image>,
-    beam_right: Handle<Image>,
-    beam_right_accelerating: Handle<Image>,
-    plasma: Handle<Image>,
-    plasma_accelerating: Handle<Image>,
-    plasma_left: Handle<Image>,
-    plasma_left_accelerating: Handle<Image>,
-    plasma_right: Handle<Image>,
-    plasma_right_accelerating: Handle<Image>,
-    shield: Handle<Image>,
-}
-
-#[derive(Default)]
-struct UfoImages {
-    ship: Vec<Handle<Image>>,
-    laser: Handle<Image>,
-}
-
-#[derive(Default)]
-struct PowerupImages {
-    laser: Handle<Image>,
-    spread: Handle<Image>,
-    beam: Handle<Image>,
-    plasma: Handle<Image>,
-    extra_life: Handle<Image>,
-    lose_life: Handle<Image>,
-    shield: Handle<Image>,
-}
-
-#[derive(Default, Resource)]
-struct SpriteSheets {
-    asteroids: Handle<TextureAtlas>,
-    images: Vec<HandleUntyped>,
-    ship: ShipImages,
-    ufo: UfoImages,
-    powerup: PowerupImages,
-}
-
-#[derive(Resource)]
-struct GameState {
-    level: u32,
-    score: u32,
-    next_ufo_score: u32,
-}
+use bundles::*;
+use components::*;
+use resources::*;
 
 #[derive(Debug, Clone, Copy, Default, Eq, PartialEq, Hash, States)]
 enum AppState {
@@ -294,10 +75,6 @@ fn despawn_tagged<T: Component>(mut commands: Commands, query: Query<Entity, Wit
     }
 }
 
-fn asteroid_texture_index(variant: usize, size: AsteroidSize) -> usize {
-    variant * ASTEROID_SIZES + size as usize
-}
-
 fn asteroid_sprite_rects() -> impl Iterator<Item = Rect> {
     let variant_rows = 5;
     let variant_sizes = [8, 16, 32, 48];
@@ -342,24 +119,8 @@ fn loading(
     mut loading_text: Local<Option<Entity>>,
 ) {
     if loading_text.is_none() {
-        *loading_text = Some(
-            commands
-                .spawn(TextBundle {
-                    text: Text::from_section(
-                        "Loading...",
-                        TextStyle {
-                            font: asset_server.load("fonts/DejaVuSans.ttf"),
-                            font_size: 100.0,
-                            color: Color::WHITE,
-                        },
-                    ),
-                    style: Style {
-                        ..Default::default()
-                    },
-                    ..Default::default()
-                })
-                .id(),
-        );
+        let font = asset_server.load("fonts/DejaVuSans.ttf");
+        *loading_text = Some(commands.spawn(LoadingTextBundle::new(font)).id());
     }
 
     let handles = sprite_sheets.images.iter().map(|h| h.id());
@@ -490,56 +251,28 @@ fn load_level(
 
     for size in level_asteroids(game_state.level) {
         let distance: f32 = 100.0 * (rand::random::<f32>() + 1.0);
-        let pos: Vec2 =
+        let position: Vec2 =
             Vec2::from_angle(rand::random::<f32>() * 2.0 * std::f32::consts::TAU) * distance;
-        commands
-            .spawn(SpriteSheetBundle {
-                texture_atlas: sprite_sheets.asteroids.clone(),
-                sprite: TextureAtlasSprite::new(asteroid_texture_index(asteroid_variant, size)),
-                transform: Transform::from_translation(pos.extend(0.)),
-                ..Default::default()
-            })
-            .insert(Moving {
-                velocity: Vec2::new(
-                    (rand::random::<f32>() - 0.5) * 10.0,
-                    (rand::random::<f32>() - 0.5) * 10.0,
-                ),
-                ..Default::default()
-            })
-            .insert(Spinning { speed: 0.2 })
-            .insert(Wrapping)
-            .insert(Asteroid {
-                size,
-                integrity: size as i32 * 4 + 1,
-                variant: asteroid_variant,
-            })
-            .insert(LevelEntity);
+        let velocity = Vec2::new(
+            (rand::random::<f32>() - 0.5) * 10.0,
+            (rand::random::<f32>() - 0.5) * 10.0,
+        );
+        let spinning_speed = 0.2;
+        commands.spawn(AsteroidBundle::new(
+            sprite_sheets.as_ref(),
+            asteroid_variant,
+            size,
+            position,
+            velocity,
+            spinning_speed,
+        ));
     }
 
     if ships_query.is_empty() {
-        let ship = Ship {
-            weapon_rapid_level: 4,
-            weapon_spread_level: 4,
-            weapon_beam_level: 4,
-            weapon_plasma_level: 8,
-            shield_level: 2,
-            ..Ship::default()
-        };
         commands
-            .spawn(SpriteBundle {
-                texture: sprite_sheets.ship.choose(&ship),
-                ..Default::default()
-            })
-            .insert(Moving::default())
-            .insert(Wrapping)
-            .insert(ship)
+            .spawn(ShipBundle::new(sprite_sheets.as_ref()))
             .with_children(|ship| {
-                ship.spawn(SpriteBundle {
-                    visibility: Visibility::Hidden,
-                    texture: sprite_sheets.ship.shield.clone(),
-                    ..Default::default()
-                })
-                .insert(ShipShield);
+                ship.spawn(ShipShieldBundle::new(&sprite_sheets.ship));
             });
     } else {
         for mut transform in ships_query.iter_mut() {
@@ -631,28 +364,6 @@ fn ship_control_system(mut ship_query: Query<&mut Ship>, keyboard_input: Res<Inp
     }
 }
 
-fn spawn_projectile(
-    commands: &mut Commands,
-    projectile: ShipProjectile,
-    texture: Handle<Image>,
-    velocity: Vec2,
-    transform: Transform,
-    life: f32,
-) {
-    commands
-        .spawn(SpriteBundle {
-            texture,
-            transform,
-            ..Default::default()
-        })
-        .insert(Moving {
-            velocity,
-            ..Default::default()
-        })
-        .insert(Wrapping)
-        .insert(projectile)
-        .insert(Expiring { life });
-}
 fn ship_physics(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -710,22 +421,20 @@ fn ship_physics(
                         rotation: transform.rotation.clone(),
                         ..Default::default()
                     };
-                    spawn_projectile(
-                        &mut commands,
+                    commands.spawn(ShipProjectileBundle::new(
                         projectile,
                         texture.clone(),
                         velocity.clone(),
                         left_transform,
                         0.25,
-                    );
-                    spawn_projectile(
-                        &mut commands,
+                    ));
+                    commands.spawn(ShipProjectileBundle::new(
                         projectile,
                         texture,
                         velocity,
                         right_transform,
                         0.25,
-                    );
+                    ));
                     ship.weapon_cooldown =
                         lerp(0.3, 0.05, (ship.weapon_rapid_level - 1) as f32 / 8.0);
                 }
@@ -743,14 +452,13 @@ fn ship_physics(
                             translation: transform.translation,
                             ..Default::default()
                         };
-                        spawn_projectile(
-                            &mut commands,
+                        commands.spawn(ShipProjectileBundle::new(
                             projectile,
                             texture.clone(),
                             velocity,
                             transform,
                             0.20,
-                        );
+                        ));
                     }
                     ship.weapon_cooldown =
                         lerp(0.8, 0.3, (ship.weapon_spread_level - 1) as f32 / 8.0);
@@ -766,7 +474,9 @@ fn ship_physics(
                         rotation,
                         scale,
                     };
-                    spawn_projectile(&mut commands, projectile, texture, velocity, transform, 0.5);
+                    commands.spawn(ShipProjectileBundle::new(
+                        projectile, texture, velocity, transform, 0.5,
+                    ));
                     ship.weapon_cooldown =
                         lerp(1.2, 0.8, (ship.weapon_plasma_level - 1) as f32 / 8.0);
                 }
@@ -942,30 +652,19 @@ fn asteroid_split_system(
                     .truncate()
                     .normalize();
                 let data = [direction, -direction];
-                let transform = transform.clone();
 
+                let position = transform.translation.truncate();
+                let spinning_speed = 0.2;
                 for dir in data {
-                    commands
-                        .spawn(SpriteSheetBundle {
-                            texture_atlas: sprite_sheets.asteroids.clone(),
-                            sprite: TextureAtlasSprite {
-                                index: asteroid_texture_index(asteroid.variant, size),
-                                ..Default::default()
-                            },
-                            transform,
-                            ..Default::default()
-                        })
-                        .insert(Moving {
-                            velocity: dir * 30.0,
-                            ..Default::default()
-                        })
-                        .insert(Spinning { speed: 0.2 })
-                        .insert(Wrapping)
-                        .insert(Asteroid {
-                            size,
-                            integrity: size as i32 * 4 + 1,
-                            variant: asteroid.variant,
-                        });
+                    let velocity = dir * 30.0;
+                    commands.spawn(AsteroidBundle::new(
+                        sprite_sheets.as_ref(),
+                        asteroid.variant,
+                        size,
+                        position,
+                        velocity,
+                        spinning_speed,
+                    ));
                 }
             }
         }
@@ -1011,35 +710,18 @@ fn ufo_spawn_system(
             },
         ) - Vec2::new(400.0, 240.0);
 
-        let start_position = position;
-        let end_position = -position;
-        let frequency = rand::random::<f32>() * 5.0;
-        let amplitude = rand::random::<f32>() * 90.0 + 10.0;
-        let duration = 20.0 - 10.0 * (game_state.level as f32 / 40.0).min(1.0);
-        let time = 0.0;
-        let shoot_delay = 2.0; // FIXME
-        let shoot_accuracy = 0.75; // FIXME
-        let transform = Transform::from_translation(start_position.extend(0.));
-        let texture = sprite_sheets.ufo.ship[0].clone();
-        let life = 20;
-        commands
-            .spawn(SpriteBundle {
-                texture,
-                transform,
-                ..Default::default()
-            })
-            .insert(Ufo {
-                start_position,
-                end_position,
-                frequency,
-                amplitude,
-                duration,
-                time,
-                shoot_delay,
-                shoot_accuracy,
-                life,
-            })
-            .insert(LevelEntity);
+        let ufo = Ufo {
+            start_position: position,
+            end_position: -position,
+            frequency: rand::random::<f32>() * 5.0,
+            amplitude: rand::random::<f32>() * 90.0 + 10.0,
+            duration: 20.0 - 10.0 * (game_state.level as f32 / 40.0).min(1.0),
+            time: 0.0,
+            shoot_delay: 2.0,     // FIXME
+            shoot_accuracy: 0.75, // FIXME
+            life: 20,
+        };
+        commands.spawn(UfoBundle::new(&sprite_sheets.ufo, ufo));
     }
 }
 
@@ -1094,22 +776,14 @@ fn ufo_shoot_system(
             let speed = 500.0; // FIXME
             let velocity = aim * speed;
             let angle = Vec2::Y.angle_between(aim);
-            let transform = Transform::from_translation(ufo_transform.translation)
-                .with_rotation(Quat::from_rotation_z(angle));
-            let texture = sprite_sheets.ufo.laser.clone();
             let life = 2.0;
-            commands
-                .spawn(SpriteBundle {
-                    texture,
-                    transform,
-                    ..Default::default()
-                })
-                .insert(UfoLaser)
-                .insert(Moving {
-                    velocity,
-                    acceleration: Vec2::ZERO,
-                })
-                .insert(Expiring { life });
+            commands.spawn(UfoLaserBundle::new(
+                &sprite_sheets.ufo,
+                ufo_transform.translation.truncate(),
+                angle,
+                velocity,
+                life,
+            ));
         }
     }
 }
@@ -1200,42 +874,6 @@ impl rand::distributions::Distribution<Powerup> for rand::distributions::Standar
             5 => LoseLife,
             6 => Shield,
             _ => unreachable!(),
-        }
-    }
-}
-impl PowerupBundle {
-    fn new(
-        powerup: Powerup,
-        position: Vec2,
-        velocity: Vec2,
-        life: f32,
-        sprite_sheet: &PowerupImages,
-    ) -> Self {
-        let texture = match powerup {
-            Powerup::Laser => &sprite_sheet.laser,
-            Powerup::Spread => &sprite_sheet.spread,
-            Powerup::Beam => &sprite_sheet.beam,
-            Powerup::Plasma => &sprite_sheet.plasma,
-            Powerup::ExtraLife => &sprite_sheet.extra_life,
-            Powerup::LoseLife => &sprite_sheet.lose_life,
-            Powerup::Shield => &sprite_sheet.shield,
-        }
-        .clone();
-        let transform = Transform::from_translation(position.extend(0.));
-        Self {
-            sprite_bundle: SpriteBundle {
-                texture,
-                transform,
-                ..Default::default()
-            },
-            powerup,
-            moving: Moving {
-                velocity,
-                acceleration: Vec2::ZERO,
-            },
-            expiring: Expiring { life },
-            wrapping: Wrapping,
-            level_entity: LevelEntity,
         }
     }
 }
