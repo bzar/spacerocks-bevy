@@ -25,10 +25,13 @@ impl AsteroidSize {
             AsteroidSize::Large => 24.0,
         }
     }
+    pub fn cost(&self) -> u32 {
+        match self {
+            AsteroidSize::Tiny => 1,
+            _ => 2 * self.smaller().unwrap().cost(),
+        }
+    }
 }
-
-pub const ASTEROID_SIZES: usize = 4;
-pub const ASTEROID_VARIANTS: usize = 12;
 
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub enum ShipWeapon {

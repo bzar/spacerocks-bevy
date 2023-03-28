@@ -1,12 +1,13 @@
 use bevy::{asset::LoadState, prelude::*};
+use rand::{random, thread_rng, Rng};
 
 mod bundles;
 mod components;
+mod constants;
 mod resources;
+mod utils;
 
-use bundles::*;
-use components::*;
-use resources::*;
+use crate::{bundles::*, components::*, constants::*, resources::*, utils::*};
 
 #[derive(Debug, Clone, Copy, Default, Eq, PartialEq, Hash, States)]
 enum AppState {
@@ -21,7 +22,7 @@ fn main() {
         .add_plugins(DefaultPlugins)
         .insert_resource(SpriteSheets::default())
         .insert_resource(GameState {
-            level: 0,
+            level: Level(0),
             score: 0,
             next_ufo_score: random_ufo_interval(),
         })
@@ -75,32 +76,6 @@ fn despawn_tagged<T: Component>(mut commands: Commands, query: Query<Entity, Wit
     }
 }
 
-fn asteroid_sprite_rects() -> impl Iterator<Item = Rect> {
-    let variant_rows = 5;
-    let variant_sizes = [8, 16, 32, 48];
-    let variant_width: u32 = variant_sizes.iter().sum();
-    let variant_height = variant_sizes.into_iter().max().unwrap_or(0);
-
-    (0..ASTEROID_VARIANTS).flat_map(move |variant_index| {
-        let variant_x = (variant_index as u32 / variant_rows) * variant_width;
-        let variant_y = (variant_index as u32 % variant_rows) * variant_height;
-
-        variant_sizes
-            .into_iter()
-            .scan(0, |size_x, size| {
-                let result = (size_x.clone(), size);
-                *size_x += size;
-                Some(result)
-            })
-            .map(move |(size_x, size)| Rect {
-                min: Vec2::new((variant_x + size_x) as f32, variant_y as f32),
-                max: Vec2::new(
-                    (variant_x + size_x + size - 1) as f32,
-                    (variant_y + size - 1) as f32,
-                ),
-            })
-    })
-}
 fn init(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -128,6 +103,33 @@ fn loading(
         // Initialize texture atlases
         let asteroid_texture = asset_server.load("img/asteroids.png");
         let mut asteroid_atlas = TextureAtlas::new_empty(asteroid_texture, Vec2::new(512.0, 256.0));
+
+        fn asteroid_sprite_rects() -> impl Iterator<Item = Rect> {
+            let variant_rows = 5;
+            let variant_sizes = [8, 16, 32, 48];
+            let variant_width: u32 = variant_sizes.iter().sum();
+            let variant_height = variant_sizes.into_iter().max().unwrap_or(0);
+
+            (0..ASTEROID_VARIANTS).flat_map(move |variant_index| {
+                let variant_x = (variant_index as u32 / variant_rows) * variant_width;
+                let variant_y = (variant_index as u32 % variant_rows) * variant_height;
+
+                variant_sizes
+                    .into_iter()
+                    .scan(0, |size_x, size| {
+                        let result = (size_x.clone(), size);
+                        *size_x += size;
+                        Some(result)
+                    })
+                    .map(move |(size_x, size)| Rect {
+                        min: Vec2::new((variant_x + size_x) as f32, variant_y as f32),
+                        max: Vec2::new(
+                            (variant_x + size_x + size - 1) as f32,
+                            (variant_y + size - 1) as f32,
+                        ),
+                    })
+            })
+        }
 
         for asteroid_rect in asteroid_sprite_rects() {
             asteroid_atlas.add_texture(asteroid_rect);
@@ -190,43 +192,6 @@ fn loading(
     }
 }
 
-fn level_asteroids(level: u32) -> impl Iterator<Item = AsteroidSize> {
-    let cost = |size| match size {
-        AsteroidSize::Tiny => 1,
-        AsteroidSize::Small => 2 + 2 * 1,
-        AsteroidSize::Medium => 3 + 2 * 2 * 4 * 1,
-        AsteroidSize::Large => 4 + 2 * 3 + 4 * 2 * 8 * 1,
-    };
-
-    let budget = (level % 20 + 2) * cost(AsteroidSize::Large);
-    let sizes: &[AsteroidSize] = match level {
-        0..=4 => &[AsteroidSize::Large],
-        5..=8 => &[AsteroidSize::Large, AsteroidSize::Medium],
-        9..=12 => &[
-            AsteroidSize::Large,
-            AsteroidSize::Medium,
-            AsteroidSize::Small,
-        ],
-        _ => &[
-            AsteroidSize::Large,
-            AsteroidSize::Medium,
-            AsteroidSize::Small,
-            AsteroidSize::Tiny,
-        ],
-    };
-
-    sizes.iter().cycle().scan(budget, move |budget, &size| {
-        if *budget >= cost(size) {
-            *budget -= cost(size);
-            Some(size)
-        } else if *budget > 0 {
-            *budget -= 1;
-            Some(AsteroidSize::Tiny)
-        } else {
-            None
-        }
-    })
-}
 fn load_level(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -235,12 +200,14 @@ fn load_level(
     mut app_state: ResMut<NextState<AppState>>,
     mut ships_query: Query<&mut Transform, With<Ship>>,
 ) {
-    println!("setup level {}", game_state.level);
+    println!("setup level {}", game_state.level.0);
 
-    let asteroid_variant = game_state.level as usize % ASTEROID_VARIANTS;
+    let asteroid_variant = game_state.level.asteroid_variant();
 
-    let background_texture =
-        asset_server.load(&format!("img/background-{}.png", game_state.level % 11 + 1));
+    let background_texture = asset_server.load(&format!(
+        "img/background-{}.png",
+        game_state.level.background_image()
+    ));
     commands
         .spawn(SpriteBundle {
             texture: background_texture,
@@ -249,14 +216,14 @@ fn load_level(
         })
         .insert(LevelEntity);
 
-    for size in level_asteroids(game_state.level) {
-        let distance: f32 = 100.0 * (rand::random::<f32>() + 1.0);
-        let position: Vec2 =
-            Vec2::from_angle(rand::random::<f32>() * 2.0 * std::f32::consts::TAU) * distance;
-        let velocity = Vec2::new(
-            (rand::random::<f32>() - 0.5) * 10.0,
-            (rand::random::<f32>() - 0.5) * 10.0,
-        );
+    let mut rng = thread_rng();
+    for size in game_state.level.asteroids() {
+        let distance: f32 = rng.gen_range(game_state.level.asteroid_distance_bounds());
+        let direction = random::<f32>() * std::f32::consts::TAU;
+        let position: Vec2 = Vec2::from_angle(direction) * distance;
+        let heading = random::<f32>() * std::f32::consts::TAU;
+        let speed = rng.gen_range(game_state.level.asteroid_speed_bounds());
+        let velocity = Vec2::from_angle(heading) * speed;
         let spinning_speed = 0.2;
         commands.spawn(AsteroidBundle::new(
             sprite_sheets.as_ref(),
@@ -519,10 +486,6 @@ fn ship_physics(
     }
 }
 
-fn lerp(start: f32, end: f32, position: f32) -> f32 {
-    start + (end - start) * position
-}
-
 fn ship_sprite(
     mut ship_query: Query<(&Ship, &mut Handle<Image>)>,
     sprite_sheets: Res<SpriteSheets>,
@@ -618,7 +581,10 @@ fn asteroid_split_system(
                 let direction = (transform.rotation * transform.translation)
                     .truncate()
                     .normalize();
-                let data = [direction, -direction];
+                let data = [direction, -direction]
+                    .into_iter()
+                    .cycle()
+                    .take(game_state.level.asteroid_frag_count() as usize);
 
                 let position = transform.translation.truncate();
                 let spinning_speed = 0.2;
@@ -644,7 +610,7 @@ fn level_finished_system(
     mut state: ResMut<NextState<AppState>>,
 ) {
     if asteroids_query.is_empty() {
-        game_state.level += 1;
+        game_state.level.increment();
         state.set(AppState::LoadLevel);
     }
 }
@@ -656,10 +622,10 @@ fn ufo_spawn_system(
 ) {
     if game_state.score >= game_state.next_ufo_score {
         game_state.next_ufo_score += random_ufo_interval();
-        let horizontal: bool = rand::random();
-        let direction: bool = rand::random();
+        let horizontal: bool = random();
+        let direction: bool = random();
         let span = if horizontal { 800.0 } else { 480.0 };
-        let d = rand::random::<f32>() * span;
+        let d = random::<f32>() * span;
         let position = Vec2::new(
             if !horizontal {
                 d
@@ -680,12 +646,12 @@ fn ufo_spawn_system(
         let ufo = Ufo {
             start_position: position,
             end_position: -position,
-            frequency: rand::random::<f32>() * 5.0,
-            amplitude: rand::random::<f32>() * 90.0 + 10.0,
-            duration: 20.0 - 10.0 * (game_state.level as f32 / 40.0).min(1.0),
+            frequency: random::<f32>() * 5.0,
+            amplitude: random::<f32>() * 90.0 + 10.0,
+            duration: game_state.level.ufo_duration(),
             time: 0.0,
-            shoot_delay: 2.0,     // FIXME
-            shoot_accuracy: 0.75, // FIXME
+            shoot_delay: game_state.level.ufo_shoot_delay(),
+            shoot_accuracy: game_state.level.ufo_shoot_accuracy(),
             life: 20,
         };
         commands.spawn(UfoBundle::new(&sprite_sheets.ufo, ufo));
@@ -738,7 +704,7 @@ fn ufo_shoot_system(
                 .truncate()
                 .normalize();
             let aim_error =
-                (1.0 - ufo.shoot_accuracy) * (rand::random::<f32>() - 0.5) * std::f32::consts::PI;
+                (1.0 - ufo.shoot_accuracy) * (random::<f32>() - 0.5) * std::f32::consts::PI;
             let aim = Vec2::from_angle(aim_error).rotate(target);
             let speed = 500.0; // FIXME
             let velocity = aim * speed;
@@ -757,7 +723,7 @@ fn ufo_shoot_system(
 fn random_ufo_interval() -> u32 {
     const MIN: f32 = 400.0;
     const MAX: f32 = 800.0;
-    (rand::random::<f32>() * (MAX - MIN) + MIN) as u32
+    (random::<f32>() * (MAX - MIN) + MIN) as u32
 }
 fn asteroid_score(size: AsteroidSize) -> u32 {
     match size {
@@ -813,10 +779,9 @@ fn ship_projectile_ufo_hit_system(
                 ShipProjectile::Beam { .. } => {}
             }
             if ufo.life <= 0 {
-                let velocity =
-                    Vec2::from_angle(rand::random::<f32>() * std::f32::consts::TAU) * 30.0; // FIXME
+                let velocity = Vec2::from_angle(random::<f32>() * std::f32::consts::TAU) * 30.0; // FIXME
                 commands.spawn(PowerupBundle::new(
-                    rand::random(),
+                    random(),
                     ufo_transform.translation.truncate(),
                     velocity,
                     5.0,
@@ -868,7 +833,7 @@ fn ship_powerup_collision_system(
                         ship.weapon_plasma_level = (ship.weapon_plasma_level + 1).min(8)
                     }
                     Powerup::ExtraLife => ship.lives += 1,
-                    Powerup::LoseLife => ship.lives -= 1,
+                    Powerup::LoseLife => ship.lives = ship.lives.max(1) - 1,
                     Powerup::Shield => ship.shield_level += 1,
                 }
                 commands.entity(powerup_entity).despawn();
@@ -939,7 +904,7 @@ fn update_hud_system(
     let ship = ships_query.single();
     for mut hud in hud_query.iter_mut() {
         let new_hud = HUD {
-            level: game_state.level,
+            level: game_state.level.0,
             score: game_state.score,
             lives: ship.lives,
             weapon: ship.weapon,
