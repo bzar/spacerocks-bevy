@@ -523,39 +523,6 @@ fn lerp(start: f32, end: f32, position: f32) -> f32 {
     start + (end - start) * position
 }
 
-impl ShipImages {
-    fn choose(&self, ship: &Ship) -> Handle<Image> {
-        use {ShipTurn::*, ShipWeapon::*};
-        match (&ship.weapon, ship.turn, ship.throttle) {
-            (Rapid, Neutral, false) => &self.rapid,
-            (Rapid, Neutral, true) => &self.rapid_accelerating,
-            (Rapid, Left, false) => &self.rapid_left,
-            (Rapid, Left, true) => &self.rapid_left_accelerating,
-            (Rapid, Right, false) => &self.rapid_right,
-            (Rapid, Right, true) => &self.rapid_right_accelerating,
-            (Spread, Neutral, false) => &self.spread,
-            (Spread, Neutral, true) => &self.spread_accelerating,
-            (Spread, Left, false) => &self.spread_left,
-            (Spread, Left, true) => &self.spread_left_accelerating,
-            (Spread, Right, false) => &self.spread_right,
-            (Spread, Right, true) => &self.spread_right_accelerating,
-            (Beam, Neutral, false) => &self.beam,
-            (Beam, Neutral, true) => &self.beam_accelerating,
-            (Beam, Left, false) => &self.beam_left,
-            (Beam, Left, true) => &self.beam_left_accelerating,
-            (Beam, Right, false) => &self.beam_right,
-            (Beam, Right, true) => &self.beam_right_accelerating,
-            (Plasma, Neutral, false) => &self.plasma,
-            (Plasma, Neutral, true) => &self.plasma_accelerating,
-            (Plasma, Left, false) => &self.plasma_left,
-            (Plasma, Left, true) => &self.plasma_left_accelerating,
-            (Plasma, Right, false) => &self.plasma_right,
-            (Plasma, Right, true) => &self.plasma_right_accelerating,
-        }
-        .clone_weak()
-    }
-}
-
 fn ship_sprite(
     mut ship_query: Query<(&Ship, &mut Handle<Image>)>,
     sprite_sheets: Res<SpriteSheets>,
