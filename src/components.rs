@@ -170,3 +170,19 @@ pub struct Animated {
     pub elapsed: f32,
     pub looping: bool,
 }
+
+#[derive(Component)]
+pub enum CollisionShape {
+    Circle { radius: f32 },
+}
+
+impl CollisionShape {
+    pub fn intersects(&self, pos_self: Vec2, other: &CollisionShape, pos_other: Vec2) -> bool {
+        use CollisionShape::*;
+        match (self, other) {
+            (Circle { radius: r1 }, Circle { radius: r2 }) => {
+                pos_self.distance_squared(pos_other) <= (r1 + r2).powf(2.0)
+            }
+        }
+    }
+}

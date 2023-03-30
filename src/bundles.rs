@@ -84,6 +84,7 @@ pub struct AsteroidBundle {
     wrapping: Wrapping,
     asteroid: Asteroid,
     level_entity: LevelEntity,
+    collision_shape: CollisionShape,
 }
 impl AsteroidBundle {
     pub fn new(
@@ -119,6 +120,9 @@ impl AsteroidBundle {
             asteroid,
             wrapping: Wrapping,
             level_entity: LevelEntity,
+            collision_shape: CollisionShape::Circle {
+                radius: size.radius(),
+            },
         }
     }
 }
@@ -129,6 +133,7 @@ pub struct ShipBundle {
     moving: Moving,
     wrapping: Wrapping,
     ship: Ship,
+    collision_shape: CollisionShape,
 }
 impl ShipBundle {
     pub fn new(sprite_sheets: &SpriteSheets) -> Self {
@@ -149,6 +154,7 @@ impl ShipBundle {
             moving: Moving::default(),
             wrapping: Wrapping,
             ship,
+            collision_shape: CollisionShape::Circle { radius: 12.0 },
         }
     }
 }

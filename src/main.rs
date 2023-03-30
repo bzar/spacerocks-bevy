@@ -859,19 +859,17 @@ fn ship_powerup_collision_system(
 fn ship_asteroid_collision_system(
     mut commands: Commands,
     sprite_sheets: Res<SpriteSheets>,
-    mut ships_query: Query<(&mut Ship, &mut Transform, &mut Moving)>,
-    asteroids_query: Query<(&Asteroid, &Transform, &Moving), Without<Ship>>,
+    mut ships_query: Query<(&mut Ship, &mut Transform, &mut Moving, &CollisionShape)>,
+    asteroids_query: Query<(&Transform, &Moving, &CollisionShape), (With<Asteroid>, Without<Ship>)>,
 ) {
-    for (mut ship, mut ship_transform, mut ship_moving) in ships_query.iter_mut() {
+    for (mut ship, mut ship_transform, mut ship_moving, ship_shape) in ships_query.iter_mut() {
         if ship.invulnerability > 0.0 {
             continue;
         }
         let ship_position = ship_transform.translation.truncate();
-        for (asteroid, asteroid_transform, asteroid_moving) in asteroids_query.iter() {
+        for (asteroid_transform, asteroid_moving, asteroid_shape) in asteroids_query.iter() {
             let asteroid_position = asteroid_transform.translation.truncate();
-            let asteroid_radius: f32 = asteroid.size.radius();
-            let distance_sq = ship_position.distance_squared(asteroid_position);
-            if distance_sq <= asteroid_radius.powf(2.0) {
+            if ship_shape.intersects(ship_position, asteroid_shape, asteroid_position) {
                 if ship.shield_level > 0 {
                     ship.shield_level -= 1;
                     let diff = ship_position - asteroid_position;
