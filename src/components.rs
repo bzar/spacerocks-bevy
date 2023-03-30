@@ -157,3 +157,15 @@ pub struct Ship {
 
 #[derive(Component)]
 pub struct ShipShield;
+
+pub struct Animation {
+    pub frames: Vec<Handle<Image>>,
+    pub duration: f32,
+}
+
+#[derive(Component)]
+pub struct Animated {
+    pub animation: Animation,
+    pub elapsed: f32,
+    pub looping: bool,
+}

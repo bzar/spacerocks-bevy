@@ -40,6 +40,7 @@ fn main() {
                 spinning_system,
                 wrapping_system,
                 expiring_system,
+                animation_system,
                 asteroid_split_system,
                 ufo_spawn_system,
                 ufo_movement_system,
@@ -184,6 +185,12 @@ fn loading(
             lose_life: asset_server.load("img/powerup_loselife.png"),
             shield: asset_server.load("img/powerup_shield.png"),
         };
+
+        sprite_sheets.explosion.normal = (1..=EXPLOSION_IMAGES)
+            .map(|i| format!("img/explosion/explosion1_{i:04}.png"))
+            .map(|path| asset_server.load(&path))
+            .collect();
+
         // Loading finished
         if let Some(entity) = *loading_text {
             commands.entity(entity).despawn();
@@ -787,6 +794,10 @@ fn ship_projectile_ufo_hit_system(
                     5.0,
                     &sprite_sheets.powerup,
                 ));
+                commands.spawn(ExplosionBundle::new(
+                    &sprite_sheets.explosion,
+                    ufo_transform.translation.truncate(),
+                ));
                 commands.entity(ufo_entity).despawn();
                 break;
             }
@@ -843,6 +854,8 @@ fn ship_powerup_collision_system(
 }
 
 fn ship_asteroid_collision_system(
+    mut commands: Commands,
+    sprite_sheets: Res<SpriteSheets>,
     mut ships_query: Query<(&mut Ship, &mut Transform, &mut Moving)>,
     asteroids_query: Query<(&Asteroid, &Transform, &Moving), Without<Ship>>,
 ) {
@@ -863,6 +876,10 @@ fn ship_asteroid_collision_system(
                 } else {
                     ship_transform.translation = Vec3::ZERO;
                     ship.lives = ship.lives.max(1) - 1; //FIXME
+                    commands.spawn(ExplosionBundle::new(
+                        &sprite_sheets.explosion,
+                        ship_position,
+                    ));
                 }
             }
         }
@@ -945,5 +962,25 @@ fn update_hud_text_system(mut hud_query: Query<(&HUD, &mut Text), Changed<HUD>>)
         );
         dbg!(&hud_text);
         text.sections[0].value = hud_text;
+    }
+}
+
+fn animation_system(
+    mut animated_query: Query<(&mut Animated, &mut Handle<Image>)>,
+    time: Res<Time>,
+) {
+    let delta = time.delta_seconds();
+    for (mut animated, mut image) in animated_query.iter_mut() {
+        animated.elapsed += delta;
+        let position = if animated.looping {
+            animated.elapsed.rem_euclid(animated.animation.duration)
+        } else {
+            animated.elapsed.min(animated.animation.duration)
+        };
+        let frame = ((animated.animation.frames.len() - 1) as f32 * position
+            / animated.animation.duration)
+            .floor() as usize;
+
+        *image = animated.animation.frames[frame].clone()
     }
 }

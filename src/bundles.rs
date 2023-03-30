@@ -255,3 +255,30 @@ impl UfoLaserBundle {
         }
     }
 }
+
+#[derive(Bundle)]
+pub struct ExplosionBundle {
+    sprite_bundle: SpriteBundle,
+    animated: Animated,
+    expiring: Expiring,
+}
+impl ExplosionBundle {
+    pub fn new(explosion_images: &ExplosionImages, position: Vec2) -> ExplosionBundle {
+        ExplosionBundle {
+            sprite_bundle: SpriteBundle {
+                texture: explosion_images.normal[0].clone(),
+                transform: Transform::from_translation(position.extend(0.)),
+                ..Default::default()
+            },
+            animated: Animated {
+                animation: Animation {
+                    frames: explosion_images.normal.clone(),
+                    duration: 2.0,
+                },
+                elapsed: 0.0,
+                looping: false,
+            },
+            expiring: Expiring { life: 2.0 },
+        }
+    }
+}

@@ -47,6 +47,11 @@ pub struct PowerupImages {
     pub shield: Handle<Image>,
 }
 
+#[derive(Default)]
+pub struct ExplosionImages {
+    pub normal: Vec<Handle<Image>>,
+}
+
 #[derive(Default, Resource)]
 pub struct SpriteSheets {
     pub asteroids: Handle<TextureAtlas>,
@@ -54,6 +59,7 @@ pub struct SpriteSheets {
     pub ship: ShipImages,
     pub ufo: UfoImages,
     pub powerup: PowerupImages,
+    pub explosion: ExplosionImages,
 }
 
 pub struct Level(pub u32);
@@ -108,32 +114,6 @@ impl Level {
     pub fn background_image(&self) -> usize {
         self.0 as usize % BACKGROUND_IMAGES + 1
     }
-    pub fn asteroids(&self) -> impl Iterator<Item = AsteroidSize> {
-        let budget = (self.0 % 20 + 2) * AsteroidSize::Large.cost();
-        self.asteroid_sizes()
-            .iter()
-            .cycle()
-            .scan(budget, move |budget, &size| {
-                if *budget >= size.cost() {
-                    *budget -= size.cost();
-                    Some(size)
-                } else if *budget > 0 {
-                    *budget -= 1;
-                    Some(AsteroidSize::Tiny)
-                } else {
-                    None
-                }
-            })
-    }
-    pub fn ufo_duration(&self) -> f32 {
-        lerp(20.0, 10.0, self.0 as f32 / 40.0)
-    }
-    pub fn ufo_shoot_delay(&self) -> f32 {
-        lerp(3.0, 1.5, self.0 as f32 / 60.0)
-    }
-    pub fn ufo_shoot_accuracy(&self) -> f32 {
-        lerp(0.6, 0.9, self.0 as f32 / 60.0)
-    }
     pub fn asteroid_distance_bounds(&self) -> std::ops::RangeInclusive<f32> {
         100.0..=200.0
     }
@@ -161,5 +141,31 @@ impl Level {
     }
     pub fn asteroid_frag_count(&self) -> u32 {
         2 + self.0 % 20
+    }
+    pub fn asteroids(&self) -> impl Iterator<Item = AsteroidSize> {
+        let budget = (self.0 % 20 + 2) * AsteroidSize::Large.cost();
+        self.asteroid_sizes()
+            .iter()
+            .cycle()
+            .scan(budget, move |budget, &size| {
+                if *budget >= size.cost() {
+                    *budget -= size.cost();
+                    Some(size)
+                } else if *budget > 0 {
+                    *budget -= 1;
+                    Some(AsteroidSize::Tiny)
+                } else {
+                    None
+                }
+            })
+    }
+    pub fn ufo_duration(&self) -> f32 {
+        lerp(20.0, 10.0, self.0 as f32 / 40.0)
+    }
+    pub fn ufo_shoot_delay(&self) -> f32 {
+        lerp(3.0, 1.5, self.0 as f32 / 60.0)
+    }
+    pub fn ufo_shoot_accuracy(&self) -> f32 {
+        lerp(0.6, 0.9, self.0 as f32 / 60.0)
     }
 }
