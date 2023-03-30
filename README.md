@@ -16,19 +16,21 @@
   - [ ] Beam
   - [x] Plasma
 - [x] UFOs
-- [ ] Shield
-- [ ] Powerups
-- [ ] Game HUD
+- [x] Shield
+- [x] Powerups
+- [-] Game HUD
 - [ ] Collisions
   - [x] Weapon -> Asteroid
   - [x] Weapon -> UFO
-  - [ ] Asteroid -> Ship
+  - [x] Asteroid -> Ship
   - [ ] UFO -> Ship
-  - [ ] Powerup -> Ship
-- [ ] Levels
+  - [x] Powerup -> Ship
+  - [x] Invulnerability
+- [x] Levels
   - [x] Change
   - [x] Progress
-  - [ ] UFO logic
+  - [x] UFO logic
+- [x] Explosions
 - [ ] Particle effects
 - [ ] Music
 - [ ] Sounds

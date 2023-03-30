@@ -153,6 +153,7 @@ pub struct Ship {
     pub weapon_cooldown: f32,
     pub shield_level: u8,
     pub lives: u8,
+    pub invulnerability: f32,
 }
 
 #[derive(Component)]

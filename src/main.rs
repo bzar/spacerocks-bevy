@@ -348,6 +348,7 @@ fn ship_physics(
     let time_delta = time.delta().as_secs_f32();
 
     for (ship_entity, mut ship, mut moving, mut transform) in ship_query.iter_mut() {
+        ship.invulnerability = (ship.invulnerability - time_delta).max(0.);
         let angular_velocity = match ship.turn {
             ShipTurn::Neutral => 0.0,
             ShipTurn::Left => 3.0,
@@ -494,11 +495,13 @@ fn ship_physics(
 }
 
 fn ship_sprite(
-    mut ship_query: Query<(&Ship, &mut Handle<Image>)>,
+    mut ship_query: Query<(&Ship, &mut Sprite, &mut Handle<Image>)>,
     sprite_sheets: Res<SpriteSheets>,
 ) {
-    for (ship, mut image) in ship_query.iter_mut() {
+    for (ship, mut sprite, mut image) in ship_query.iter_mut() {
         *image = sprite_sheets.ship.choose(&ship);
+        let alpha = if ship.invulnerability > 0.0 { 0.5 } else { 1.0 };
+        sprite.color.set_a(alpha);
     }
 }
 
@@ -860,6 +863,9 @@ fn ship_asteroid_collision_system(
     asteroids_query: Query<(&Asteroid, &Transform, &Moving), Without<Ship>>,
 ) {
     for (mut ship, mut ship_transform, mut ship_moving) in ships_query.iter_mut() {
+        if ship.invulnerability > 0.0 {
+            continue;
+        }
         let ship_position = ship_transform.translation.truncate();
         for (asteroid, asteroid_transform, asteroid_moving) in asteroids_query.iter() {
             let asteroid_position = asteroid_transform.translation.truncate();
@@ -876,6 +882,7 @@ fn ship_asteroid_collision_system(
                 } else {
                     ship_transform.translation = Vec3::ZERO;
                     ship.lives = ship.lives.max(1) - 1; //FIXME
+                    ship.invulnerability = SHIP_INVULNERABILITY;
                     commands.spawn(ExplosionBundle::new(
                         &sprite_sheets.explosion,
                         ship_position,
@@ -887,10 +894,15 @@ fn ship_asteroid_collision_system(
 }
 
 fn ship_ufo_laser_collision_system(
+    mut commands: Commands,
     mut ships_query: Query<(&mut Ship, &mut Transform, &mut Moving)>,
     ufo_laser_query: Query<(&Transform, &Moving), (With<UfoLaser>, Without<Ship>)>,
+    sprite_sheets: Res<SpriteSheets>,
 ) {
     for (mut ship, mut ship_transform, mut ship_moving) in ships_query.iter_mut() {
+        if ship.invulnerability > 0.0 {
+            continue;
+        }
         let ship_position = ship_transform.translation.truncate();
         for (laser_transform, laser_moving) in ufo_laser_query.iter() {
             let laser_position = laser_transform.translation.truncate();
@@ -907,6 +919,11 @@ fn ship_ufo_laser_collision_system(
                 } else {
                     ship_transform.translation = Vec3::ZERO;
                     ship.lives = ship.lives.max(1) - 1; //FIXME
+                    ship.invulnerability = SHIP_INVULNERABILITY;
+                    commands.spawn(ExplosionBundle::new(
+                        &sprite_sheets.explosion,
+                        ship_position,
+                    ));
                 }
             }
         }
