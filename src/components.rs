@@ -52,6 +52,8 @@ pub enum ShipProjectile {
 #[derive(Component)]
 pub struct Beam {
     pub length: f32,
+    pub max_length: f32,
+    pub sustained: f32,
 }
 
 #[derive(Clone, Copy)]

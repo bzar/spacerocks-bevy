@@ -364,24 +364,10 @@ fn ship_physics(
         }
 
         if ship.fire && ship.weapon_cooldown <= 0.0 {
-            let projectile = match ship.weapon {
-                ShipWeapon::Rapid => ShipProjectile::Rapid,
-                ShipWeapon::Spread => ShipProjectile::Spread,
-                ShipWeapon::Beam => ShipProjectile::Beam { power: 20.0 },
-                ShipWeapon::Plasma => ShipProjectile::Plasma {
-                    power: lerp(4.0, 20.0, (ship.weapon_plasma_level - 1) as f32 / 8.0),
-                },
-            };
-            let texture_path = match ship.weapon {
-                ShipWeapon::Rapid => "img/laser.png",
-                ShipWeapon::Spread => "img/shot.png",
-                ShipWeapon::Beam => "img/continuous_tip.png",
-                ShipWeapon::Plasma => "img/plasma.png",
-            };
-            let texture = asset_server.load(texture_path);
-
             match ship.weapon {
                 ShipWeapon::Rapid => {
+                    let projectile = ShipProjectile::Rapid;
+                    let texture = asset_server.load("img/laser.png");
                     let left_turret = transform.translation
                         + transform.rotation * Quat::from_rotation_z(1.55) * Vec3::Y * 8.0;
                     let right_turret = transform.translation
@@ -417,6 +403,8 @@ fn ship_physics(
                         lerp(0.3, 0.05, (ship.weapon_rapid_level - 1) as f32 / 8.0);
                 }
                 ShipWeapon::Spread => {
+                    let projectile = ShipProjectile::Spread;
+                    let texture = asset_server.load("img/shot.png");
                     let spread_angle =
                         lerp(0.314, 3.0, (ship.weapon_spread_level - 1) as f32 / 8.0);
                     let shots = 2 * ship.weapon_spread_level + 1;
@@ -443,6 +431,10 @@ fn ship_physics(
                         lerp(0.8, 0.3, (ship.weapon_spread_level - 1) as f32 / 8.0);
                 }
                 ShipWeapon::Plasma => {
+                    let projectile = ShipProjectile::Plasma {
+                        power: lerp(4.0, 20.0, (ship.weapon_plasma_level - 1) as f32 / 8.0),
+                    };
+                    let texture = asset_server.load("img/plasma.png");
                     let power = lerp(4.0, 20.0, (ship.weapon_plasma_level - 1) as f32 / 8.0);
                     let velocity = (transform.rotation * Vec3::Y * 1000.0).truncate();
                     let translation = transform.translation.clone();
@@ -460,8 +452,12 @@ fn ship_physics(
                         lerp(1.2, 0.8, (ship.weapon_plasma_level - 1) as f32 / 8.0);
                 }
                 ShipWeapon::Beam => {
+                    let projectile = ShipProjectile::Beam { power: 20.0 };
                     if beam_query.is_empty() {
-                        let length = 16.0;
+                        let texture = asset_server.load("img/continuous_tip.png");
+                        let length = 0.0;
+                        let max_length = BEAM_BASE_LENGTH
+                            + BEAM_LENGTH_PER_LEVEL * ship.weapon_beam_level as f32;
                         let transform = Transform::from_xyz(0.0, 64.0, 0.0);
                         let tip = commands
                             .spawn(SpriteBundle {
@@ -480,20 +476,45 @@ fn ship_physics(
                                 transform,
                                 ..Default::default()
                             })
-                            .insert(Beam { length })
+                            .insert(Beam {
+                                length,
+                                max_length,
+                                sustained: 0.0,
+                            })
                             .insert(projectile)
                             .id();
                         commands.entity(beam).push_children(&[tip]);
                         commands.entity(ship_entity).push_children(&[beam]);
                     } else {
                         for (mut beam, mut transform) in beam_query.iter_mut() {
-                            beam.length += time_delta * 32.0;
+                            beam.sustained += time_delta;
+                            if beam.sustained > BEAM_EXTEND_TIME {
+                                beam.max_length =
+                                    (beam.max_length - time_delta * BEAM_RETRACT_RATE).max(0.);
+                                beam.length = beam.max_length;
+                            } else {
+                                beam.length = beam.sustained / BEAM_EXTEND_TIME * beam.max_length;
+                            }
                             transform.translation.y = beam.length / 2.0;
                             transform.scale.y = beam.length / 128.0;
                         }
                     }
                 }
-            };
+            }
+        } else if matches!(ship.weapon, ShipWeapon::Beam) {
+            for (mut beam, mut transform) in beam_query.iter_mut() {
+                if beam.length > 0.0 {
+                    beam.length = (beam.length - time_delta * 1024.0).max(0.0);
+                    transform.translation.y = beam.length / 2.0;
+                    transform.scale.y = beam.length / 128.0;
+                } else {
+                    beam.sustained = 0.0;
+                    let max_length =
+                        BEAM_BASE_LENGTH + BEAM_LENGTH_PER_LEVEL * ship.weapon_beam_level as f32;
+                    beam.max_length =
+                        (beam.max_length + time_delta * BEAM_RECHARGE_RATE).min(max_length);
+                }
+            }
         }
     }
 }
