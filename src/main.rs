@@ -41,6 +41,7 @@ fn main() {
                 wrapping_system,
                 expiring_system,
                 animation_system,
+                collision_shape_system,
                 asteroid_split_system,
                 ufo_spawn_system,
                 ufo_movement_system,
@@ -218,7 +219,7 @@ fn load_level(
     commands
         .spawn(SpriteBundle {
             texture: background_texture,
-            transform: Transform::from_xyz(0.0, 0.0, -0.01),
+            transform: Transform::from_xyz(0.0, 0.0, -0.09),
             ..Default::default()
         })
         .insert(LevelEntity);
@@ -402,6 +403,7 @@ fn ship_physics(
                         velocity.clone(),
                         left_transform,
                         0.25,
+                        1.0,
                     ));
                     commands.spawn(ShipProjectileBundle::new(
                         projectile,
@@ -409,6 +411,7 @@ fn ship_physics(
                         velocity,
                         right_transform,
                         0.25,
+                        1.0,
                     ));
                     ship.weapon_cooldown =
                         lerp(0.3, 0.05, (ship.weapon_rapid_level - 1) as f32 / 8.0);
@@ -433,6 +436,7 @@ fn ship_physics(
                             velocity,
                             transform,
                             0.20,
+                            1.0,
                         ));
                     }
                     ship.weapon_cooldown =
@@ -450,7 +454,7 @@ fn ship_physics(
                         scale,
                     };
                     commands.spawn(ShipProjectileBundle::new(
-                        projectile, texture, velocity, transform, 0.5,
+                        projectile, texture, velocity, transform, 0.5, power,
                     ));
                     ship.weapon_cooldown =
                         lerp(1.2, 0.8, (ship.weapon_plasma_level - 1) as f32 / 8.0);
@@ -525,42 +529,34 @@ fn shield_sprite(
 
 fn ship_projectile_asteroid_hit_system(
     mut commands: Commands,
-    mut projectiles: Query<(Entity, &mut ShipProjectile, &mut Transform)>,
-    mut asteroids: Query<(&mut Asteroid, &Transform), Without<ShipProjectile>>,
+    mut projectiles: Query<(
+        Entity,
+        &mut ShipProjectile,
+        &mut Transform,
+        &mut CollisionShape,
+    )>,
+    mut asteroids: Query<(&mut Asteroid, &CollisionShape), Without<ShipProjectile>>,
 ) {
-    for (projectile_entity, projectile, mut projectile_transform) in projectiles.iter_mut() {
-        for (mut asteroid, asteroid_transform) in asteroids.iter_mut() {
-            let asteroid_radius: f32 = match asteroid.size {
-                AsteroidSize::Tiny => 4.0,
-                AsteroidSize::Small => 8.0,
-                AsteroidSize::Medium => 16.0,
-                AsteroidSize::Large => 24.0,
-            };
-            match *projectile {
-                ShipProjectile::Rapid | ShipProjectile::Spread => {
-                    if projectile_transform
-                        .translation
-                        .distance_squared(asteroid_transform.translation)
-                        < asteroid_radius.powi(2)
-                    {
+    for (projectile_entity, projectile, mut projectile_transform, mut projectile_shape) in
+        projectiles.iter_mut()
+    {
+        for (mut asteroid, asteroid_shape) in asteroids.iter_mut() {
+            if projectile_shape.intersects(asteroid_shape) {
+                match *projectile {
+                    ShipProjectile::Rapid | ShipProjectile::Spread => {
                         commands.entity(projectile_entity).despawn();
                         if asteroid.integrity > 0 {
                             asteroid.integrity -= 1;
                         }
                     }
-                }
-                ShipProjectile::Plasma { mut power } => {
-                    if projectile_transform
-                        .translation
-                        .distance_squared(asteroid_transform.translation)
-                        < (asteroid_radius + power).powi(2)
-                    {
-                        let distance = projectile_transform
-                            .translation
-                            .distance(asteroid_transform.translation);
-                        let effect =
-                            (asteroid_radius + power - distance).min(asteroid.integrity as f32);
+                    ShipProjectile::Plasma { mut power } => {
+                        let overlap = -projectile_shape.distance(asteroid_shape).min(0.0);
+                        let effect = overlap.min(asteroid.integrity as f32);
                         power -= effect;
+                        *projectile_shape = CollisionShape::Circle {
+                            center: projectile_transform.translation.truncate(),
+                            radius: power,
+                        };
                         if power <= 0.0 {
                             commands.entity(projectile_entity).despawn();
                         } else {
@@ -570,8 +566,8 @@ fn ship_projectile_asteroid_hit_system(
                             asteroid.integrity -= effect.ceil() as i32;
                         }
                     }
+                    ShipProjectile::Beam { .. } => {}
                 }
-                ShipProjectile::Beam { .. } => {}
             }
         }
     }
@@ -745,37 +741,35 @@ fn asteroid_score(size: AsteroidSize) -> u32 {
 }
 fn ship_projectile_ufo_hit_system(
     mut commands: Commands,
-    mut projectiles: Query<(Entity, &mut ShipProjectile, &mut Transform)>,
-    mut ufos: Query<(Entity, &mut Ufo, &Transform), Without<ShipProjectile>>,
+    mut projectiles: Query<(
+        Entity,
+        &mut ShipProjectile,
+        &mut Transform,
+        &mut CollisionShape,
+    )>,
+    mut ufos: Query<(Entity, &mut Ufo, &Transform, &CollisionShape), Without<ShipProjectile>>,
     sprite_sheets: Res<SpriteSheets>,
 ) {
-    for (projectile_entity, projectile, mut projectile_transform) in projectiles.iter_mut() {
-        for (ufo_entity, mut ufo, ufo_transform) in ufos.iter_mut() {
-            let ufo_radius: f32 = 16.0;
-            match *projectile {
-                ShipProjectile::Rapid | ShipProjectile::Spread => {
-                    if projectile_transform
-                        .translation
-                        .distance_squared(ufo_transform.translation)
-                        < ufo_radius.powi(2)
-                    {
+    for (projectile_entity, projectile, mut projectile_transform, mut projectile_shape) in
+        projectiles.iter_mut()
+    {
+        for (ufo_entity, mut ufo, ufo_transform, ufo_shape) in ufos.iter_mut() {
+            if projectile_shape.intersects(ufo_shape) {
+                match *projectile {
+                    ShipProjectile::Rapid | ShipProjectile::Spread => {
                         commands.entity(projectile_entity).despawn();
                         if ufo.life > 0 {
                             ufo.life -= 1;
                         }
                     }
-                }
-                ShipProjectile::Plasma { mut power } => {
-                    if projectile_transform
-                        .translation
-                        .distance_squared(ufo_transform.translation)
-                        < (ufo_radius + power).powi(2)
-                    {
-                        let distance = projectile_transform
-                            .translation
-                            .distance(ufo_transform.translation);
-                        let effect = (ufo_radius + power - distance).min(ufo.life as f32);
+                    ShipProjectile::Plasma { mut power } => {
+                        let overlap = -projectile_shape.distance(ufo_shape).min(0.0);
+                        let effect = overlap.min(ufo.life as f32);
                         power -= effect;
+                        *projectile_shape = CollisionShape::Circle {
+                            center: projectile_transform.translation.truncate(),
+                            radius: power,
+                        };
                         if power <= 0.0 {
                             commands.entity(projectile_entity).despawn();
                         } else {
@@ -785,11 +779,12 @@ fn ship_projectile_ufo_hit_system(
                             ufo.life -= effect.ceil() as i32;
                         }
                     }
+                    ShipProjectile::Beam { .. } => {}
                 }
-                ShipProjectile::Beam { .. } => {}
             }
             if ufo.life <= 0 {
-                let velocity = Vec2::from_angle(random::<f32>() * std::f32::consts::TAU) * 30.0; // FIXME
+                let speed = lerp(30.0, 80.0, random());
+                let velocity = Vec2::from_angle(random::<f32>() * std::f32::consts::TAU) * speed;
                 commands.spawn(PowerupBundle::new(
                     random(),
                     ufo_transform.translation.truncate(),
@@ -826,15 +821,12 @@ impl rand::distributions::Distribution<Powerup> for rand::distributions::Standar
 
 fn ship_powerup_collision_system(
     mut commands: Commands,
-    mut ships_query: Query<(&mut Ship, &Transform)>,
-    powerups_query: Query<(Entity, &Powerup, &Transform)>,
+    mut ships_query: Query<(&mut Ship, &CollisionShape)>,
+    powerups_query: Query<(Entity, &Powerup, &CollisionShape)>,
 ) {
-    for (mut ship, ship_transform) in ships_query.iter_mut() {
-        for (powerup_entity, powerup, powerup_transform) in powerups_query.iter() {
-            let distance_sq = ship_transform
-                .translation
-                .distance_squared(powerup_transform.translation);
-            if distance_sq <= 32.0f32.powf(2.0) {
+    for (mut ship, ship_shape) in ships_query.iter_mut() {
+        for (powerup_entity, powerup, powerup_shape) in powerups_query.iter() {
+            if ship_shape.intersects(powerup_shape) {
                 match powerup {
                     Powerup::Laser => {
                         ship.weapon_rapid_level = (ship.weapon_rapid_level + 1).min(8)
@@ -869,7 +861,7 @@ fn ship_asteroid_collision_system(
         let ship_position = ship_transform.translation.truncate();
         for (asteroid_transform, asteroid_moving, asteroid_shape) in asteroids_query.iter() {
             let asteroid_position = asteroid_transform.translation.truncate();
-            if ship_shape.intersects(ship_position, asteroid_shape, asteroid_position) {
+            if ship_shape.intersects(asteroid_shape) {
                 if ship.shield_level > 0 {
                     ship.shield_level -= 1;
                     let diff = ship_position - asteroid_position;
@@ -997,5 +989,11 @@ fn animation_system(
             .floor() as usize;
 
         *image = animated.animation.frames[frame].clone()
+    }
+}
+
+fn collision_shape_system(mut query: Query<(&mut CollisionShape, &Transform)>) {
+    for (mut shape, transform) in query.iter_mut() {
+        shape.move_to(transform.translation.truncate());
     }
 }

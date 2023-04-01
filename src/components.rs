@@ -173,16 +173,44 @@ pub struct Animated {
 
 #[derive(Component)]
 pub enum CollisionShape {
-    Circle { radius: f32 },
+    Circle { center: Vec2, radius: f32 },
 }
 
 impl CollisionShape {
-    pub fn intersects(&self, pos_self: Vec2, other: &CollisionShape, pos_other: Vec2) -> bool {
+    pub fn move_to(&mut self, to: Vec2) {
+        use CollisionShape::*;
+        match self {
+            Circle { ref mut center, .. } => *center = to,
+        }
+    }
+    pub fn intersects(&self, other: &CollisionShape) -> bool {
         use CollisionShape::*;
         match (self, other) {
-            (Circle { radius: r1 }, Circle { radius: r2 }) => {
-                pos_self.distance_squared(pos_other) <= (r1 + r2).powf(2.0)
-            }
+            (
+                Circle {
+                    center: c1,
+                    radius: r1,
+                },
+                Circle {
+                    center: c2,
+                    radius: r2,
+                },
+            ) => c1.distance_squared(*c2) <= (r1 + r2).powf(2.0),
+        }
+    }
+    pub fn distance(&self, other: &CollisionShape) -> f32 {
+        use CollisionShape::*;
+        match (self, other) {
+            (
+                Circle {
+                    center: c1,
+                    radius: r1,
+                },
+                Circle {
+                    center: c2,
+                    radius: r2,
+                },
+            ) => c1.distance(*c2) - r1 - r2,
         }
     }
 }

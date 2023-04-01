@@ -29,7 +29,7 @@ impl PowerupBundle {
             Powerup::Shield => &sprite_sheet.shield,
         }
         .clone();
-        let transform = Transform::from_translation(position.extend(0.));
+        let transform = Transform::from_translation(position.extend(-0.01));
         Self {
             sprite_bundle: SpriteBundle {
                 texture,
@@ -121,6 +121,7 @@ impl AsteroidBundle {
             wrapping: Wrapping,
             level_entity: LevelEntity,
             collision_shape: CollisionShape::Circle {
+                center: position,
                 radius: size.radius(),
             },
         }
@@ -154,7 +155,10 @@ impl ShipBundle {
             moving: Moving::default(),
             wrapping: Wrapping,
             ship,
-            collision_shape: CollisionShape::Circle { radius: 12.0 },
+            collision_shape: CollisionShape::Circle {
+                center: Vec2::ZERO,
+                radius: 12.0,
+            },
         }
     }
 }
@@ -184,6 +188,7 @@ pub struct ShipProjectileBundle {
     wrapping: Wrapping,
     ship_projectile: ShipProjectile,
     expiring: Expiring,
+    collision_shape: CollisionShape,
 }
 impl ShipProjectileBundle {
     pub fn new(
@@ -192,6 +197,7 @@ impl ShipProjectileBundle {
         velocity: Vec2,
         transform: Transform,
         life: f32,
+        radius: f32,
     ) -> Self {
         ShipProjectileBundle {
             sprite_bundle: SpriteBundle {
@@ -206,6 +212,10 @@ impl ShipProjectileBundle {
             wrapping: Wrapping,
             ship_projectile,
             expiring: Expiring { life },
+            collision_shape: CollisionShape::Circle {
+                center: transform.translation.truncate(),
+                radius,
+            },
         }
     }
 }
@@ -215,9 +225,11 @@ pub struct UfoBundle {
     sprite_bundle: SpriteBundle,
     ufo: Ufo,
     level_entity: LevelEntity,
+    collision_shape: CollisionShape,
 }
 impl UfoBundle {
     pub fn new(ufo_images: &UfoImages, ufo: Ufo) -> Self {
+        let center = ufo.start_position.clone();
         UfoBundle {
             sprite_bundle: SpriteBundle {
                 texture: ufo_images.ship[0].clone(),
@@ -226,6 +238,10 @@ impl UfoBundle {
             },
             ufo,
             level_entity: LevelEntity,
+            collision_shape: CollisionShape::Circle {
+                center,
+                radius: 16.0,
+            },
         }
     }
 }
@@ -236,6 +252,7 @@ pub struct UfoLaserBundle {
     ufo_laser: UfoLaser,
     moving: Moving,
     expiring: Expiring,
+    collision_shape: CollisionShape,
 }
 impl UfoLaserBundle {
     pub fn new(
@@ -258,6 +275,10 @@ impl UfoLaserBundle {
                 ..Default::default()
             },
             expiring: Expiring { life },
+            collision_shape: CollisionShape::Circle {
+                center: position,
+                radius: 1.0,
+            },
         }
     }
 }
@@ -273,7 +294,7 @@ impl ExplosionBundle {
         ExplosionBundle {
             sprite_bundle: SpriteBundle {
                 texture: explosion_images.normal[0].clone(),
-                transform: Transform::from_translation(position.extend(0.)),
+                transform: Transform::from_translation(position.extend(0.09)),
                 ..Default::default()
             },
             animated: Animated {
