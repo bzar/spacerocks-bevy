@@ -120,10 +120,13 @@ impl AsteroidBundle {
             asteroid,
             wrapping: Wrapping,
             level_entity: LevelEntity,
-            collision_shape: CollisionShape::Circle {
-                center: position,
-                radius: size.radius(),
-            },
+            collision_shape: CollisionShape::new(
+                Shape::Circle {
+                    center: Vec2::ZERO,
+                    radius: size.radius(),
+                },
+                Transform::from_translation(position.extend(0.)),
+            ),
         }
     }
 }
@@ -155,10 +158,13 @@ impl ShipBundle {
             moving: Moving::default(),
             wrapping: Wrapping,
             ship,
-            collision_shape: CollisionShape::Circle {
-                center: Vec2::ZERO,
-                radius: 12.0,
-            },
+            collision_shape: CollisionShape::new(
+                Shape::Circle {
+                    center: Vec2::ZERO,
+                    radius: 12.0,
+                },
+                Transform::default(),
+            ),
         }
     }
 }
@@ -212,10 +218,13 @@ impl ShipProjectileBundle {
             wrapping: Wrapping,
             ship_projectile,
             expiring: Expiring { life },
-            collision_shape: CollisionShape::Circle {
-                center: transform.translation.truncate(),
-                radius,
-            },
+            collision_shape: CollisionShape::new(
+                Shape::Circle {
+                    center: Vec2::ZERO,
+                    radius,
+                },
+                transform,
+            ),
         }
     }
 }
@@ -238,10 +247,13 @@ impl UfoBundle {
             },
             ufo,
             level_entity: LevelEntity,
-            collision_shape: CollisionShape::Circle {
-                center,
-                radius: 16.0,
-            },
+            collision_shape: CollisionShape::new(
+                Shape::Circle {
+                    center: Vec2::ZERO,
+                    radius: 16.0,
+                },
+                Transform::from_translation(center.extend(0.)),
+            ),
         }
     }
 }
@@ -275,10 +287,13 @@ impl UfoLaserBundle {
                 ..Default::default()
             },
             expiring: Expiring { life },
-            collision_shape: CollisionShape::Circle {
-                center: position,
-                radius: 1.0,
-            },
+            collision_shape: CollisionShape::new(
+                Shape::Circle {
+                    center: Vec2::ZERO,
+                    radius: 1.0,
+                },
+                Transform::from_translation(position.extend(0.)),
+            ),
         }
     }
 }

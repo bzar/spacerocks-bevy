@@ -343,7 +343,7 @@ fn ship_physics(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut ship_query: Query<(Entity, &mut Ship, &mut Moving, &mut Transform)>,
-    mut beam_query: Query<(&mut Beam, &mut Transform), Without<Ship>>,
+    mut beam_query: Query<(&mut Beam, &mut Transform, &mut CollisionShape), Without<Ship>>,
     time: Res<Time>,
 ) {
     let time_delta = time.delta().as_secs_f32();
@@ -455,6 +455,7 @@ fn ship_physics(
                     let projectile = ShipProjectile::Beam { power: 20.0 };
                     if beam_query.is_empty() {
                         let texture = asset_server.load("img/continuous_tip.png");
+                        let beam_from = transform.translation.truncate();
                         let length = 0.0;
                         let max_length = BEAM_BASE_LENGTH
                             + BEAM_LENGTH_PER_LEVEL * ship.weapon_beam_level as f32;
@@ -482,11 +483,19 @@ fn ship_physics(
                                 sustained: 0.0,
                             })
                             .insert(projectile)
+                            .insert(CollisionShape::new(
+                                Shape::Line {
+                                    base: Vec2::ZERO,
+                                    delta: Vec2::ZERO,
+                                    width: 8.0,
+                                },
+                                Transform::from_translation(beam_from.extend(0.)),
+                            ))
                             .id();
                         commands.entity(beam).push_children(&[tip]);
                         commands.entity(ship_entity).push_children(&[beam]);
                     } else {
-                        for (mut beam, mut transform) in beam_query.iter_mut() {
+                        for (mut beam, mut transform, mut shape) in beam_query.iter_mut() {
                             beam.sustained += time_delta;
                             if beam.sustained > BEAM_EXTEND_TIME {
                                 beam.max_length =
@@ -497,12 +506,13 @@ fn ship_physics(
                             }
                             transform.translation.y = beam.length / 2.0;
                             transform.scale.y = beam.length / 128.0;
+                            //info!("{shape:?}");
                         }
                     }
                 }
             }
         } else if matches!(ship.weapon, ShipWeapon::Beam) {
-            for (mut beam, mut transform) in beam_query.iter_mut() {
+            for (mut beam, mut transform, mut shape) in beam_query.iter_mut() {
                 if beam.length > 0.0 {
                     beam.length = (beam.length - time_delta * 1024.0).max(0.0);
                     transform.translation.y = beam.length / 2.0;
@@ -574,10 +584,13 @@ fn ship_projectile_asteroid_hit_system(
                         let overlap = -projectile_shape.distance(asteroid_shape).min(0.0);
                         let effect = overlap.min(asteroid.integrity as f32);
                         power -= effect;
-                        *projectile_shape = CollisionShape::Circle {
-                            center: projectile_transform.translation.truncate(),
-                            radius: power,
-                        };
+                        *projectile_shape = CollisionShape::new(
+                            Shape::Circle {
+                                center: Vec2::ZERO,
+                                radius: power,
+                            },
+                            *projectile_transform,
+                        );
                         if power <= 0.0 {
                             commands.entity(projectile_entity).despawn();
                         } else {
@@ -587,7 +600,9 @@ fn ship_projectile_asteroid_hit_system(
                             asteroid.integrity -= effect.ceil() as i32;
                         }
                     }
-                    ShipProjectile::Beam { .. } => {}
+                    ShipProjectile::Beam { .. } => {
+                        info!("beam intersection")
+                    }
                 }
             }
         }
@@ -787,10 +802,13 @@ fn ship_projectile_ufo_hit_system(
                         let overlap = -projectile_shape.distance(ufo_shape).min(0.0);
                         let effect = overlap.min(ufo.life as f32);
                         power -= effect;
-                        *projectile_shape = CollisionShape::Circle {
-                            center: projectile_transform.translation.truncate(),
-                            radius: power,
-                        };
+                        *projectile_shape = CollisionShape::new(
+                            Shape::Circle {
+                                center: Vec2::ZERO,
+                                radius: power,
+                            },
+                            *projectile_transform,
+                        );
                         if power <= 0.0 {
                             commands.entity(projectile_entity).despawn();
                         } else {
@@ -1013,8 +1031,8 @@ fn animation_system(
     }
 }
 
-fn collision_shape_system(mut query: Query<(&mut CollisionShape, &Transform)>) {
+fn collision_shape_system(mut query: Query<(&mut CollisionShape, &GlobalTransform)>) {
     for (mut shape, transform) in query.iter_mut() {
-        shape.move_to(transform.translation.truncate());
+        shape.transform = transform.compute_transform();
     }
 }

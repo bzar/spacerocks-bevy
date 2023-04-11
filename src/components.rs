@@ -173,20 +173,15 @@ pub struct Animated {
     pub looping: bool,
 }
 
-#[derive(Component)]
-pub enum CollisionShape {
+#[derive(Debug)]
+pub enum Shape {
     Circle { center: Vec2, radius: f32 },
+    Line { base: Vec2, delta: Vec2, width: f32 },
 }
 
-impl CollisionShape {
-    pub fn move_to(&mut self, to: Vec2) {
-        use CollisionShape::*;
-        match self {
-            Circle { ref mut center, .. } => *center = to,
-        }
-    }
-    pub fn intersects(&self, other: &CollisionShape) -> bool {
-        use CollisionShape::*;
+impl Shape {
+    pub fn intersects(&self, other: &Shape) -> bool {
+        use Shape::*;
         match (self, other) {
             (
                 Circle {
@@ -197,11 +192,25 @@ impl CollisionShape {
                     center: c2,
                     radius: r2,
                 },
-            ) => c1.distance_squared(*c2) <= (r1 + r2).powf(2.0),
+            ) => c1.distance_squared(*c2) <= (r1 + r2).powi(2),
+            (Circle { center, radius }, Line { base, delta, width })
+            | (Line { base, delta, width }, Circle { center, radius }) => {
+                let norm = (*base - *center).project_onto(delta.perp());
+                let t = (*center + norm).distance(*base) / delta.length();
+                let distance = if t > 1.0 {
+                    (*base + *delta).distance(*center)
+                } else if t < 0.0 {
+                    base.distance(*center)
+                } else {
+                    norm.length()
+                };
+                distance <= width + radius
+            }
+            _ => unimplemented!(),
         }
     }
-    pub fn distance(&self, other: &CollisionShape) -> f32 {
-        use CollisionShape::*;
+    pub fn distance(&self, other: &Shape) -> f32 {
+        use Shape::*;
         match (self, other) {
             (
                 Circle {
@@ -213,6 +222,42 @@ impl CollisionShape {
                     radius: r2,
                 },
             ) => c1.distance(*c2) - r1 - r2,
+            _ => unimplemented!(),
         }
+    }
+
+    pub fn transformed(&self, transform: &Transform) -> Shape {
+        use Shape::*;
+        match self {
+            Circle { center, radius } => Circle {
+                center: *center + transform.translation.truncate(),
+                radius: radius * transform.scale.x, // TODO
+            },
+            Line { base, delta, width } => Line {
+                base: *base + transform.translation.truncate(),
+                delta: transform.rotation.mul_vec3(delta.extend(0.)).truncate(),
+                width: width * transform.scale.x, // TODO
+            },
+        }
+    }
+}
+#[derive(Component)]
+pub struct CollisionShape {
+    pub shape: Shape,
+    pub transform: Transform,
+}
+
+impl CollisionShape {
+    pub fn new(shape: Shape, transform: Transform) -> Self {
+        CollisionShape { shape, transform }
+    }
+    fn global_shape(&self) -> Shape {
+        self.shape.transformed(&self.transform)
+    }
+    pub fn intersects(&self, other: &CollisionShape) -> bool {
+        self.global_shape().intersects(&other.global_shape())
+    }
+    pub fn distance(&self, other: &CollisionShape) -> f32 {
+        self.global_shape().distance(&other.global_shape())
     }
 }
