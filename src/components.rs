@@ -54,6 +54,7 @@ pub struct Beam {
     pub length: f32,
     pub max_length: f32,
     pub sustained: f32,
+    pub cooldown: f32,
 }
 
 #[derive(Clone, Copy)]
@@ -195,16 +196,16 @@ impl Shape {
             ) => c1.distance_squared(*c2) <= (r1 + r2).powi(2),
             (Circle { center, radius }, Line { base, delta, width })
             | (Line { base, delta, width }, Circle { center, radius }) => {
-                let norm = (*base - *center).project_onto(delta.perp());
-                let t = (*center + norm).distance(*base) / delta.length();
-                let distance = if t > 1.0 {
-                    (*base + *delta).distance(*center)
-                } else if t < 0.0 {
-                    base.distance(*center)
+                let norm = delta.perp().normalize();
+                let a = *center - *base;
+                let b = *center - *base - *delta;
+                if norm.perp_dot(a) * norm.perp_dot(b) < 0.0 {
+                    a.project_onto(norm).length_squared() < (radius + width).powi(2)
+                } else if a.length_squared() < b.length_squared() {
+                    a.length_squared() <= (radius + width).powi(2)
                 } else {
-                    norm.length()
-                };
-                distance <= width + radius
+                    b.length_squared() <= (radius + width).powi(2)
+                }
             }
             _ => unimplemented!(),
         }
@@ -222,6 +223,14 @@ impl Shape {
                     radius: r2,
                 },
             ) => c1.distance(*c2) - r1 - r2,
+            (Circle { center, radius }, Line { base, delta, width })
+            | (Line { base, delta, width }, Circle { center, radius }) => {
+                let l1q = (*center - *base).project_onto(*delta);
+                let q = l1q + *base;
+                let s2 = (radius + width).powi(2) - (*center - q).length_squared();
+                let t = 1.0 - s2 / l1q.length_squared();
+                (l1q * t).length()
+            }
             _ => unimplemented!(),
         }
     }
@@ -231,12 +240,12 @@ impl Shape {
         match self {
             Circle { center, radius } => Circle {
                 center: *center + transform.translation.truncate(),
-                radius: radius * transform.scale.x, // TODO
+                radius: radius * transform.scale.max_element(), // TODO
             },
             Line { base, delta, width } => Line {
                 base: *base + transform.translation.truncate(),
                 delta: transform.rotation.mul_vec3(delta.extend(0.)).truncate(),
-                width: width * transform.scale.x, // TODO
+                width: width * transform.scale.max_element(), // TODO
             },
         }
     }

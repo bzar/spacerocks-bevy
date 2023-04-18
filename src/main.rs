@@ -42,17 +42,18 @@ fn main() {
                 expiring_system,
                 animation_system,
                 collision_shape_system,
+                beam_sprite_system,
                 asteroid_split_system,
-                ufo_spawn_system,
-                ufo_movement_system,
-                ufo_animation_system,
-                ufo_shoot_system,
             )
                 .in_set(OnUpdate(AppState::InGame)),
         )
         .add_systems(
             (
-                ship_projectile_asteroid_hit_system,
+                ufo_spawn_system,
+                ufo_movement_system,
+                ufo_animation_system,
+                ufo_shoot_system,
+                ship_projectile_asteroid_hit_system.after(ship_physics),
                 ship_projectile_ufo_hit_system,
                 ship_powerup_collision_system,
                 ship_asteroid_collision_system,
@@ -343,7 +344,7 @@ fn ship_physics(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut ship_query: Query<(Entity, &mut Ship, &mut Moving, &mut Transform)>,
-    mut beam_query: Query<(&mut Beam, &mut Transform, &mut CollisionShape), Without<Ship>>,
+    mut beam_query: Query<&mut Beam, Without<Ship>>,
     time: Res<Time>,
 ) {
     let time_delta = time.delta().as_secs_f32();
@@ -459,35 +460,40 @@ fn ship_physics(
                         let length = 0.0;
                         let max_length = BEAM_BASE_LENGTH
                             + BEAM_LENGTH_PER_LEVEL * ship.weapon_beam_level as f32;
-                        let transform = Transform::from_xyz(0.0, 64.0, 0.0);
+                        let transform = Transform::from_xyz(0.0, 128.0, 0.0);
                         let tip = commands
                             .spawn(SpriteBundle {
                                 texture,
                                 transform,
                                 ..Default::default()
                             })
-                            .insert(projectile)
                             .id();
                         let texture = asset_server.load("img/continuous_beam.png");
-                        let mut transform = Transform::from_xyz(0.0, length / 2.0, 0.0);
+                        let mut transform = Transform::default();
+                        transform.translation.z = -0.01;
                         transform.scale.y = length / 128.0;
                         let beam = commands
                             .spawn(SpriteBundle {
                                 texture,
                                 transform,
+                                sprite: Sprite {
+                                    anchor: bevy::sprite::Anchor::BottomCenter,
+                                    ..Default::default()
+                                },
                                 ..Default::default()
                             })
                             .insert(Beam {
                                 length,
                                 max_length,
                                 sustained: 0.0,
+                                cooldown: 0.0,
                             })
                             .insert(projectile)
                             .insert(CollisionShape::new(
                                 Shape::Line {
                                     base: Vec2::ZERO,
-                                    delta: Vec2::ZERO,
-                                    width: 8.0,
+                                    delta: Vec2::Y * 128.0,
+                                    width: 4.0,
                                 },
                                 Transform::from_translation(beam_from.extend(0.)),
                             ))
@@ -495,28 +501,27 @@ fn ship_physics(
                         commands.entity(beam).push_children(&[tip]);
                         commands.entity(ship_entity).push_children(&[beam]);
                     } else {
-                        for (mut beam, mut transform, mut shape) in beam_query.iter_mut() {
+                        for mut beam in beam_query.iter_mut() {
                             beam.sustained += time_delta;
                             if beam.sustained > BEAM_EXTEND_TIME {
                                 beam.max_length =
                                     (beam.max_length - time_delta * BEAM_RETRACT_RATE).max(0.);
-                                beam.length = beam.max_length;
-                            } else {
-                                beam.length = beam.sustained / BEAM_EXTEND_TIME * beam.max_length;
                             }
-                            transform.translation.y = beam.length / 2.0;
-                            transform.scale.y = beam.length / 128.0;
-                            //info!("{shape:?}");
+                            if beam.cooldown <= 0.0 {
+                                beam.length = beam.max_length.min(
+                                    beam.length + beam.max_length * time_delta / BEAM_EXTEND_TIME,
+                                );
+                            } else {
+                                beam.cooldown -= time_delta;
+                            }
                         }
                     }
                 }
             }
         } else if matches!(ship.weapon, ShipWeapon::Beam) {
-            for (mut beam, mut transform, mut shape) in beam_query.iter_mut() {
+            for mut beam in beam_query.iter_mut() {
                 if beam.length > 0.0 {
                     beam.length = (beam.length - time_delta * 1024.0).max(0.0);
-                    transform.translation.y = beam.length / 2.0;
-                    transform.scale.y = beam.length / 128.0;
                 } else {
                     beam.sustained = 0.0;
                     let max_length =
@@ -529,6 +534,11 @@ fn ship_physics(
     }
 }
 
+fn beam_sprite_system(mut beam_query: Query<(&Beam, &mut Transform)>) {
+    for (beam, mut transform) in beam_query.iter_mut() {
+        transform.scale.y = beam.length / 128.0;
+    }
+}
 fn ship_sprite(
     mut ship_query: Query<(&Ship, &mut Sprite, &mut Handle<Image>)>,
     sprite_sheets: Res<SpriteSheets>,
@@ -565,11 +575,17 @@ fn ship_projectile_asteroid_hit_system(
         &mut ShipProjectile,
         &mut Transform,
         &mut CollisionShape,
+        Option<&mut Beam>,
     )>,
     mut asteroids: Query<(&mut Asteroid, &CollisionShape), Without<ShipProjectile>>,
 ) {
-    for (projectile_entity, projectile, mut projectile_transform, mut projectile_shape) in
-        projectiles.iter_mut()
+    for (
+        projectile_entity,
+        projectile,
+        mut projectile_transform,
+        mut projectile_shape,
+        mut maybe_beam,
+    ) in projectiles.iter_mut()
     {
         for (mut asteroid, asteroid_shape) in asteroids.iter_mut() {
             if projectile_shape.intersects(asteroid_shape) {
@@ -601,7 +617,13 @@ fn ship_projectile_asteroid_hit_system(
                         }
                     }
                     ShipProjectile::Beam { .. } => {
-                        info!("beam intersection")
+                        if let Some(ref mut beam) = maybe_beam {
+                            beam.length = projectile_shape.distance(asteroid_shape);
+                            if beam.cooldown <= 0.0 {
+                                asteroid.integrity -= BEAM_DAMAGE_PER_HIT;
+                                beam.cooldown = BEAM_HIT_INTERVAL;
+                            }
+                        }
                     }
                 }
             }
@@ -782,12 +804,18 @@ fn ship_projectile_ufo_hit_system(
         &mut ShipProjectile,
         &mut Transform,
         &mut CollisionShape,
+        Option<&mut Beam>,
     )>,
     mut ufos: Query<(Entity, &mut Ufo, &Transform, &CollisionShape), Without<ShipProjectile>>,
     sprite_sheets: Res<SpriteSheets>,
 ) {
-    for (projectile_entity, projectile, mut projectile_transform, mut projectile_shape) in
-        projectiles.iter_mut()
+    for (
+        projectile_entity,
+        projectile,
+        mut projectile_transform,
+        mut projectile_shape,
+        mut maybe_beam,
+    ) in projectiles.iter_mut()
     {
         for (ufo_entity, mut ufo, ufo_transform, ufo_shape) in ufos.iter_mut() {
             if projectile_shape.intersects(ufo_shape) {
@@ -818,7 +846,15 @@ fn ship_projectile_ufo_hit_system(
                             ufo.life -= effect.ceil() as i32;
                         }
                     }
-                    ShipProjectile::Beam { .. } => {}
+                    ShipProjectile::Beam { .. } => {
+                        if let Some(ref mut beam) = maybe_beam {
+                            beam.length = projectile_shape.distance(ufo_shape);
+                            if beam.cooldown <= 0.0 {
+                                ufo.life -= BEAM_DAMAGE_PER_HIT;
+                                beam.cooldown = BEAM_HIT_INTERVAL;
+                            }
+                        }
+                    }
                 }
             }
             if ufo.life <= 0 {

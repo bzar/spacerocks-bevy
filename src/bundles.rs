@@ -144,7 +144,7 @@ impl ShipBundle {
         let ship = Ship {
             weapon_rapid_level: 4,
             weapon_spread_level: 4,
-            weapon_beam_level: 4,
+            weapon_beam_level: 8,
             weapon_plasma_level: 8,
             shield_level: 2,
             ..Ship::default()

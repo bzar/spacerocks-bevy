@@ -8,3 +8,5 @@ pub const BEAM_BASE_LENGTH: f32 = 24.0;
 pub const BEAM_LENGTH_PER_LEVEL: f32 = 16.0;
 pub const BEAM_RECHARGE_RATE: f32 = 16.0;
 pub const BEAM_RETRACT_RATE: f32 = 8.0;
+pub const BEAM_HIT_INTERVAL: f32 = 1.0 / 3.0;
+pub const BEAM_DAMAGE_PER_HIT: i32 = 1;
