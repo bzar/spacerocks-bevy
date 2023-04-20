@@ -43,6 +43,7 @@ fn main() {
                 animation_system,
                 collision_shape_system,
                 beam_sprite_system,
+                asteroid_hit_system,
                 asteroid_split_system,
             )
                 .in_set(OnUpdate(AppState::InGame)),
@@ -233,7 +234,7 @@ fn load_level(
         let heading = random::<f32>() * std::f32::consts::TAU;
         let speed = rng.gen_range(game_state.level.asteroid_speed_bounds());
         let velocity = Vec2::from_angle(heading) * speed;
-        let spinning_speed = 0.2;
+        let spinning_speed = random::<f32>() - 0.5;
         commands.spawn(AsteroidBundle::new(
             sprite_sheets.as_ref(),
             asteroid_variant,
@@ -631,6 +632,22 @@ fn ship_projectile_asteroid_hit_system(
     }
 }
 
+fn asteroid_hit_system(
+    mut asteroids_query: Query<(&mut Moving, &CollisionShape, &Transform), With<Asteroid>>,
+) {
+    let mut pairs = asteroids_query.iter_combinations_mut();
+    while let Some([(mut a_moving, a_shape, a_transform), (mut b_moving, b_shape, b_transform)]) =
+        pairs.fetch_next()
+    {
+        if a_shape.intersects(b_shape) {
+            let direction = (a_transform.translation - b_transform.translation)
+                .truncate()
+                .normalize();
+            a_moving.velocity = direction * a_moving.velocity.length();
+            b_moving.velocity = -direction * b_moving.velocity.length();
+        }
+    }
+}
 fn asteroid_split_system(
     mut commands: Commands,
     asteroids: Query<(Entity, &Asteroid, &Transform)>,
@@ -651,7 +668,7 @@ fn asteroid_split_system(
                     .take(game_state.level.asteroid_frag_count() as usize);
 
                 let position = transform.translation.truncate();
-                let spinning_speed = 0.2;
+                let spinning_speed = random::<f32>() - 0.5;
                 for dir in data {
                     let velocity = dir * 30.0;
                     commands.spawn(AsteroidBundle::new(
