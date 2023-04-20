@@ -10,19 +10,20 @@
 - [x] Ship
   - [x] Movement
   - [x] Sprite
-- [ ] Weapons
+- [x] Weapons
   - [x] Rapid
   - [x] Spread
-  - [ ] Beam
+  - [x] Beam
   - [x] Plasma
 - [x] UFOs
 - [x] Shield
 - [x] Powerups
-- [-] Game HUD
+- [x] Game HUD
 - [ ] Collisions
   - [x] Weapon -> Asteroid
   - [x] Weapon -> UFO
   - [x] Asteroid -> Ship
+  - [ ] Asteroid -> Asteroid
   - [ ] UFO -> Ship
   - [x] Powerup -> Ship
   - [x] Invulnerability
@@ -31,8 +32,15 @@
   - [x] Progress
   - [x] UFO logic
 - [x] Explosions
+- [ ] Ship respawn delay
+- [ ] Level start delay
 - [ ] Particle effects
 - [ ] Music
 - [ ] Sounds
 - [ ] Title
 - [ ] High Score
+
+### Known bugs
+
+- UI does not update correctly on some runs
+- Beam weapon collision does not match the graphics
