@@ -157,6 +157,7 @@ pub struct Ship {
     pub shield_level: u8,
     pub lives: u8,
     pub invulnerability: f32,
+    pub respawn_delay: f32,
 }
 
 #[derive(Component)]
@@ -225,10 +226,16 @@ impl Shape {
             ) => c1.distance(*c2) - r1 - r2,
             (Circle { center, radius }, Line { base, delta, width })
             | (Line { base, delta, width }, Circle { center, radius }) => {
+                // Assumes previously verified intersection
+
+                // Find the point halfway to the other side of the circle
                 let l1q = (*center - *base).project_onto(*delta);
                 let q = l1q + *base;
+                // Use pythagorean theorem to find distance squared from halfway point to circle edge
                 let s2 = (radius + width).powi(2) - (*center - q).length_squared();
+                // Calculate relative distance from base to circle edge along l1q
                 let t = 1.0 - s2 / l1q.length_squared();
+                // Distance to edge
                 (l1q * t).length()
             }
             _ => unimplemented!(),

@@ -35,6 +35,7 @@ fn main() {
                 ship_control_system,
                 ship_physics,
                 ship_sprite,
+                ship_respawn_system,
                 shield_sprite,
                 moving_system,
                 spinning_system,
@@ -309,6 +310,25 @@ fn wrapping_system(mut wrapping_query: Query<&mut Transform, With<Wrapping>>) {
             transform.translation.y -= 480.0;
         } else if transform.translation.y < -240.0 {
             transform.translation.y += 480.0;
+        }
+    }
+}
+fn ship_respawn_system(
+    mut ships_query: Query<(&mut Ship, &mut Transform, &mut Moving, &mut Visibility)>,
+    time: Res<Time>,
+) {
+    for (mut ship, mut transform, mut moving, mut visibility) in ships_query.iter_mut() {
+        if ship.respawn_delay > 0.0 {
+            ship.respawn_delay -= time.delta_seconds();
+            if ship.respawn_delay > 0.0 {
+                *visibility = Visibility::Hidden;
+                ship.invulnerability = 100.0;
+            } else {
+                *visibility = Visibility::Visible;
+                ship.invulnerability = SHIP_INVULNERABILITY;
+                transform.translation = Vec3::ZERO;
+                moving.velocity = Vec2::ZERO;
+            }
         }
     }
 }
@@ -963,9 +983,8 @@ fn ship_asteroid_collision_system(
                         .length();
                     ship_moving.velocity = diff.normalize() * speed;
                 } else {
-                    ship_transform.translation = Vec3::ZERO;
-                    ship.lives = ship.lives.max(1) - 1; //FIXME
-                    ship.invulnerability = SHIP_INVULNERABILITY;
+                    ship.respawn_delay = SHIP_RESPAWN_DELAY;
+                    ship.lives = ship.lives.max(1) - 1;
                     commands.spawn(ExplosionBundle::new(
                         &sprite_sheets.explosion,
                         ship_position,
@@ -997,9 +1016,8 @@ fn ship_ufo_collision_system(
                         (ufo_moving.velocity.project_onto(diff) - ship_moving.velocity).length();
                     ship_moving.velocity = diff.normalize() * speed;
                 } else {
-                    ship_transform.translation = Vec3::ZERO;
-                    ship.lives = ship.lives.max(1) - 1; //FIXME
-                    ship.invulnerability = SHIP_INVULNERABILITY;
+                    ship.respawn_delay = SHIP_RESPAWN_DELAY;
+                    ship.lives = ship.lives.max(1) - 1;
                     commands.spawn(ExplosionBundle::new(
                         &sprite_sheets.explosion,
                         ship_position,
@@ -1034,9 +1052,8 @@ fn ship_ufo_laser_collision_system(
                         (laser_moving.velocity.project_onto(diff) - ship_moving.velocity).length();
                     ship_moving.velocity = diff.normalize() * speed;
                 } else {
-                    ship_transform.translation = Vec3::ZERO;
-                    ship.lives = ship.lives.max(1) - 1; //FIXME
-                    ship.invulnerability = SHIP_INVULNERABILITY;
+                    ship.respawn_delay = SHIP_RESPAWN_DELAY;
+                    ship.lives = ship.lives.max(1) - 1;
                     commands.spawn(ExplosionBundle::new(
                         &sprite_sheets.explosion,
                         ship_position,

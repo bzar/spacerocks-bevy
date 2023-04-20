@@ -32,15 +32,21 @@
   - [x] Progress
   - [x] UFO logic
 - [x] Explosions
-- [ ] Ship respawn delay
+- [x] Ship respawn delay
 - [ ] Level start delay
 - [ ] Particle effects
 - [ ] Music
 - [ ] Sounds
+- [ ] Scene system
 - [ ] Title
+- [ ] Game over
 - [ ] High Score
 
 ### Known bugs
 
 - UI does not update correctly on some runs
 - Beam weapon collision does not match the graphics
+- Ufo lasers cause too big bounce with shield
+- Beam sometimes gets stuck
+- Sometimes a Ufo spawns multiple Powerups
+- Asteroid despawns sometimes cause multiple despawn errors
