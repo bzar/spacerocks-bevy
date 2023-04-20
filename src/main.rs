@@ -58,6 +58,7 @@ fn main() {
                 ship_projectile_ufo_hit_system,
                 ship_powerup_collision_system,
                 ship_asteroid_collision_system,
+                ship_ufo_collision_system,
                 ship_ufo_laser_collision_system,
                 level_finished_system,
             )
@@ -960,6 +961,40 @@ fn ship_asteroid_collision_system(
                     let speed = (asteroid_moving.velocity.project_onto(diff)
                         - ship_moving.velocity)
                         .length();
+                    ship_moving.velocity = diff.normalize() * speed;
+                } else {
+                    ship_transform.translation = Vec3::ZERO;
+                    ship.lives = ship.lives.max(1) - 1; //FIXME
+                    ship.invulnerability = SHIP_INVULNERABILITY;
+                    commands.spawn(ExplosionBundle::new(
+                        &sprite_sheets.explosion,
+                        ship_position,
+                    ));
+                }
+            }
+        }
+    }
+}
+
+fn ship_ufo_collision_system(
+    mut commands: Commands,
+    sprite_sheets: Res<SpriteSheets>,
+    mut ships_query: Query<(&mut Ship, &mut Transform, &mut Moving, &CollisionShape)>,
+    ufo_query: Query<(&Transform, &Moving, &CollisionShape), (With<Ufo>, Without<Ship>)>,
+) {
+    for (mut ship, mut ship_transform, mut ship_moving, ship_shape) in ships_query.iter_mut() {
+        if ship.invulnerability > 0.0 {
+            continue;
+        }
+        let ship_position = ship_transform.translation.truncate();
+        for (ufo_transform, ufo_moving, ufo_shape) in ufo_query.iter() {
+            let ufo_position = ufo_transform.translation.truncate();
+            if ship_shape.intersects(ufo_shape) {
+                if ship.shield_level > 0 {
+                    ship.shield_level -= 1;
+                    let diff = ship_position - ufo_position;
+                    let speed =
+                        (ufo_moving.velocity.project_onto(diff) - ship_moving.velocity).length();
                     ship_moving.velocity = diff.normalize() * speed;
                 } else {
                     ship_transform.translation = Vec3::ZERO;

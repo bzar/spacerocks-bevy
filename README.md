@@ -19,12 +19,12 @@
 - [x] Shield
 - [x] Powerups
 - [x] Game HUD
-- [ ] Collisions
+- [x] Collisions
   - [x] Weapon -> Asteroid
   - [x] Weapon -> UFO
   - [x] Asteroid -> Ship
-  - [ ] Asteroid -> Asteroid
-  - [ ] UFO -> Ship
+  - [x] Asteroid -> Asteroid
+  - [x] UFO -> Ship
   - [x] Powerup -> Ship
   - [x] Invulnerability
 - [x] Levels
