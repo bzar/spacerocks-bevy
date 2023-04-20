@@ -6,6 +6,7 @@ pub struct PowerupBundle {
     pub sprite_bundle: SpriteBundle,
     pub powerup: Powerup,
     pub moving: Moving,
+    pub collision_shape: CollisionShape,
     pub expiring: Expiring,
     pub wrapping: Wrapping,
     pub level_entity: LevelEntity,
@@ -41,6 +42,13 @@ impl PowerupBundle {
                 velocity,
                 acceleration: Vec2::ZERO,
             },
+            collision_shape: CollisionShape::new(
+                Shape::Circle {
+                    center: Vec2::ZERO,
+                    radius: 16.0,
+                },
+                transform,
+            ),
             expiring: Expiring { life },
             wrapping: Wrapping,
             level_entity: LevelEntity,
