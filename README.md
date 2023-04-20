@@ -33,7 +33,8 @@
   - [x] UFO logic
 - [x] Explosions
 - [x] Ship respawn delay
-- [ ] Level start delay
+- [x] Level start delay
+- [ ] Level start text animation
 - [ ] Particle effects
 - [ ] Music
 - [ ] Sounds
@@ -41,6 +42,7 @@
 - [ ] Title
 - [ ] Game over
 - [ ] High Score
+- [ ] View letterboxing
 
 ### Known bugs
 
@@ -50,3 +52,4 @@
 - Beam sometimes gets stuck
 - Sometimes a Ufo spawns multiple Powerups
 - Asteroid despawns sometimes cause multiple despawn errors
+- Some entities are not despawned on level change (projectiles)

@@ -1,6 +1,9 @@
 use crate::{components::*, constants::*, utils::*};
 use bevy::prelude::*;
 
+#[derive(Resource, Default)]
+pub struct LevelStartDelayTimer(pub Timer);
+
 #[derive(Default)]
 pub struct ShipImages {
     pub rapid: Handle<Image>,

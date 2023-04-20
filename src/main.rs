@@ -26,10 +26,12 @@ fn main() {
             score: 0,
             next_ufo_score: random_ufo_interval(),
         })
+        .insert_resource(LevelStartDelayTimer::default())
         .add_system(init.on_startup())
         .add_state::<AppState>()
         .add_system(loading.in_set(OnUpdate(AppState::Loading)))
         .add_system(load_level.in_schedule(OnEnter(AppState::LoadLevel)))
+        .add_system(level_start_delay_system.in_set(OnUpdate(AppState::LoadLevel)))
         .add_systems(
             (
                 ship_control_system,
@@ -209,8 +211,8 @@ fn load_level(
     asset_server: Res<AssetServer>,
     sprite_sheets: Res<SpriteSheets>,
     game_state: Res<GameState>,
-    mut app_state: ResMut<NextState<AppState>>,
     mut ships_query: Query<&mut Transform, With<Ship>>,
+    mut level_start_delay_timer: ResMut<LevelStartDelayTimer>,
 ) {
     println!("setup level {}", game_state.level.0);
 
@@ -270,7 +272,17 @@ fn load_level(
         ))
         .insert(HUD::default())
         .insert(LevelEntity);
-    app_state.set(AppState::InGame);
+    *level_start_delay_timer =
+        LevelStartDelayTimer(Timer::from_seconds(LEVEL_START_DELAY, TimerMode::Once));
+}
+fn level_start_delay_system(
+    mut timer: ResMut<LevelStartDelayTimer>,
+    time: Res<Time>,
+    mut app_state: ResMut<NextState<AppState>>,
+) {
+    if timer.0.tick(time.delta()).just_finished() {
+        app_state.set(AppState::InGame);
+    }
 }
 fn moving_system(mut moving_query: Query<(&mut Moving, &mut Transform)>, time: Res<Time>) {
     for (mut moving, mut transform) in moving_query.iter_mut() {
