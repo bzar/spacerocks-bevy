@@ -332,3 +332,45 @@ impl ExplosionBundle {
         }
     }
 }
+
+#[derive(Bundle)]
+pub struct GameNotificationBundle {
+    text_2d_bundle: Text2dBundle,
+    scaling: Scaling,
+    fading: Fading,
+    expiring: Expiring,
+}
+impl GameNotificationBundle {
+    pub fn new(
+        text: String,
+        font: Handle<Font>,
+        position: Vec2,
+        size: f32,
+        duration: f32,
+    ) -> GameNotificationBundle {
+        GameNotificationBundle {
+            text_2d_bundle: Text2dBundle {
+                text: Text::from_section(
+                    text,
+                    TextStyle {
+                        font,
+                        font_size: size,
+                        color: Color::WHITE,
+                    },
+                ),
+                transform: Transform::from_translation(position.extend(0.1)),
+                ..Default::default()
+            },
+            scaling: Scaling {
+                scale: 2.0,
+                duration,
+                elapsed: 0.0,
+            },
+            fading: Fading {
+                duration,
+                elapsed: 0.0,
+            },
+            expiring: Expiring { life: duration },
+        }
+    }
+}

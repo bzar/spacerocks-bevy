@@ -36,7 +36,7 @@
 - [x] Level start delay
 - [x] Level start text animation
 - [ ] Particle effects
-- [ ] Score/powerup notifications
+- [x] Score/powerup notifications
 - [ ] Music
 - [ ] Sounds
 - [ ] Scene system

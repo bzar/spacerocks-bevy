@@ -51,16 +51,18 @@ fn main() {
                 spinning_system,
                 wrapping_system,
                 expiring_system,
+                scaling_system,
+                fading_text_system,
                 animation_system,
                 collision_shape_system,
                 beam_sprite_system,
-                asteroid_hit_system,
-                asteroid_split_system,
             )
                 .in_set(OnUpdate(AppState::InGame)),
         )
         .add_systems(
             (
+                asteroid_hit_system,
+                asteroid_split_system,
                 ufo_spawn_system,
                 ufo_movement_system,
                 ufo_animation_system,
@@ -281,30 +283,13 @@ fn load_level(
         .insert(HUD::default())
         .insert(LevelEntity);
 
-    commands
-        .spawn(Text2dBundle {
-            text: Text::from_section(
-                &format!("Level {}", game_state.level.0),
-                TextStyle {
-                    font: asset_server.load("fonts/DejaVuSans.ttf"),
-                    font_size: 60.0,
-                    color: Color::WHITE,
-                },
-            ),
-            transform: Transform::from_xyz(0.0, 0.0, 0.1),
-            ..Default::default()
-        })
-        .insert(Scaling {
-            scale: 2.0,
-            duration: 3.0,
-            elapsed: 0.0,
-        })
-        .insert(Fading {
-            duration: 3.0,
-            elapsed: 0.0,
-        })
-        .insert(Expiring { life: 3.0 })
-        .insert(LevelEntity);
+    commands.spawn(GameNotificationBundle::new(
+        format!("Level {}", game_state.level.0),
+        asset_server.load("fonts/DejaVuSans.ttf"),
+        Vec2::ZERO,
+        60.0,
+        3.0,
+    ));
 
     *level_start_delay_timer =
         LevelStartDelayTimer(Timer::from_seconds(LEVEL_START_DELAY, TimerMode::Once));
@@ -404,6 +389,10 @@ fn ship_control_system(mut ship_query: Query<&mut Ship>, keyboard_input: Res<Inp
     let weapon_plasma = keyboard_input.pressed(KeyCode::Key4);
 
     for mut ship in ship_query.iter_mut() {
+        if ship.respawn_delay > 0.0 {
+            ship.fire = false;
+            continue;
+        }
         ship.throttle = throttle;
         ship.turn = match (turn_left, turn_right) {
             (true, false) => ShipTurn::Left,
@@ -735,10 +724,19 @@ fn asteroid_split_system(
     asteroids: Query<(Entity, &Asteroid, &Transform)>,
     sprite_sheets: Res<SpriteSheets>,
     mut game_state: ResMut<GameState>,
+    asset_server: Res<AssetServer>,
 ) {
     for (asteroid_entity, asteroid, transform) in asteroids.iter() {
         if asteroid.integrity <= 0 {
-            game_state.score += asteroid_score(asteroid.size);
+            let score = asteroid_score(asteroid.size);
+            game_state.score += score;
+            commands.spawn(GameNotificationBundle::new(
+                format!("{}", score),
+                asset_server.load("fonts/DejaVuSans.ttf"),
+                transform.translation.truncate(),
+                20.0,
+                1.0,
+            ));
             commands.entity(asteroid_entity).despawn();
             if let Some(size) = asteroid.size.smaller() {
                 let direction = (transform.rotation * transform.translation)
@@ -907,6 +905,8 @@ fn ship_projectile_ufo_hit_system(
     )>,
     mut ufos: Query<(Entity, &mut Ufo, &Transform, &CollisionShape), Without<ShipProjectile>>,
     sprite_sheets: Res<SpriteSheets>,
+    asset_server: Res<AssetServer>,
+    mut game_state: ResMut<GameState>,
 ) {
     for (
         projectile_entity,
@@ -970,6 +970,15 @@ fn ship_projectile_ufo_hit_system(
                     &sprite_sheets.explosion,
                     ufo_transform.translation.truncate(),
                 ));
+                let score = 100;
+                game_state.score += score;
+                commands.spawn(GameNotificationBundle::new(
+                    format!("{}", score),
+                    asset_server.load("fonts/DejaVuSans.ttf"),
+                    ufo_transform.translation.truncate(),
+                    20.0,
+                    1.0,
+                ));
                 commands.entity(ufo_entity).despawn();
                 break;
             }
@@ -995,28 +1004,51 @@ impl rand::distributions::Distribution<Powerup> for rand::distributions::Standar
 
 fn ship_powerup_collision_system(
     mut commands: Commands,
-    mut ships_query: Query<(&mut Ship, &CollisionShape)>,
+    mut ships_query: Query<(&mut Ship, &CollisionShape, &Transform)>,
     powerups_query: Query<(Entity, &Powerup, &CollisionShape)>,
+    asset_server: Res<AssetServer>,
 ) {
-    for (mut ship, ship_shape) in ships_query.iter_mut() {
+    for (mut ship, ship_shape, transform) in ships_query.iter_mut() {
         for (powerup_entity, powerup, powerup_shape) in powerups_query.iter() {
             if ship_shape.intersects(powerup_shape) {
-                match powerup {
+                let text = match powerup {
                     Powerup::Laser => {
-                        ship.weapon_rapid_level = (ship.weapon_rapid_level + 1).min(8)
+                        ship.weapon_rapid_level = (ship.weapon_rapid_level + 1).min(8);
+                        "Laser +1"
                     }
                     Powerup::Spread => {
-                        ship.weapon_spread_level = (ship.weapon_spread_level + 1).min(8)
+                        ship.weapon_spread_level = (ship.weapon_spread_level + 1).min(8);
+                        "Spread +1"
                     }
-                    Powerup::Beam => ship.weapon_beam_level = (ship.weapon_beam_level + 1).min(8),
+                    Powerup::Beam => {
+                        ship.weapon_beam_level = (ship.weapon_beam_level + 1).min(8);
+                        "Beam +1"
+                    }
                     Powerup::Plasma => {
-                        ship.weapon_plasma_level = (ship.weapon_plasma_level + 1).min(8)
+                        ship.weapon_plasma_level = (ship.weapon_plasma_level + 1).min(8);
+                        "Plasma +1"
                     }
-                    Powerup::ExtraLife => ship.lives += 1,
-                    Powerup::LoseLife => ship.lives = ship.lives.max(1) - 1,
-                    Powerup::Shield => ship.shield_level += 1,
-                }
+                    Powerup::ExtraLife => {
+                        ship.lives += 1;
+                        "1up"
+                    }
+                    Powerup::LoseLife => {
+                        ship.lives = ship.lives.max(1) - 1;
+                        "-1up"
+                    }
+                    Powerup::Shield => {
+                        ship.shield_level += 1;
+                        "Shield +1"
+                    }
+                };
                 commands.entity(powerup_entity).despawn();
+                commands.spawn(GameNotificationBundle::new(
+                    text.to_owned(),
+                    asset_server.load("fonts/DejaVuSans.ttf"),
+                    transform.translation.truncate(),
+                    20.0,
+                    1.0,
+                ));
             }
         }
     }
