@@ -31,7 +31,15 @@ fn main() {
         .add_state::<AppState>()
         .add_system(loading.in_set(OnUpdate(AppState::Loading)))
         .add_system(load_level.in_schedule(OnEnter(AppState::LoadLevel)))
-        .add_system(level_start_delay_system.in_set(OnUpdate(AppState::LoadLevel)))
+        .add_systems(
+            (
+                level_start_delay_system,
+                scaling_system,
+                expiring_system,
+                fading_text_system,
+            )
+                .in_set(OnUpdate(AppState::LoadLevel)),
+        )
         .add_systems(
             (
                 ship_control_system,
@@ -272,6 +280,32 @@ fn load_level(
         ))
         .insert(HUD::default())
         .insert(LevelEntity);
+
+    commands
+        .spawn(Text2dBundle {
+            text: Text::from_section(
+                &format!("Level {}", game_state.level.0),
+                TextStyle {
+                    font: asset_server.load("fonts/DejaVuSans.ttf"),
+                    font_size: 60.0,
+                    color: Color::WHITE,
+                },
+            ),
+            transform: Transform::from_xyz(0.0, 0.0, 0.1),
+            ..Default::default()
+        })
+        .insert(Scaling {
+            scale: 2.0,
+            duration: 3.0,
+            elapsed: 0.0,
+        })
+        .insert(Fading {
+            duration: 3.0,
+            elapsed: 0.0,
+        })
+        .insert(Expiring { life: 3.0 })
+        .insert(LevelEntity);
+
     *level_start_delay_timer =
         LevelStartDelayTimer(Timer::from_seconds(LEVEL_START_DELAY, TimerMode::Once));
 }
@@ -294,6 +328,21 @@ fn moving_system(mut moving_query: Query<(&mut Moving, &mut Transform)>, time: R
 fn spinning_system(mut spinning_query: Query<(&Spinning, &mut Transform)>, time: Res<Time>) {
     for (spinning, mut transform) in spinning_query.iter_mut() {
         transform.rotation *= Quat::from_rotation_z(spinning.speed * time.delta().as_secs_f32());
+    }
+}
+fn scaling_system(mut scaling_query: Query<(&mut Scaling, &mut Transform)>, time: Res<Time>) {
+    for (mut scaling, mut transform) in scaling_query.iter_mut() {
+        scaling.elapsed += time.delta_seconds();
+        transform.scale = Vec3::splat(lerp(1.0, scaling.scale, scaling.elapsed / scaling.duration))
+    }
+}
+fn fading_text_system(mut fading_query: Query<(&mut Fading, &mut Text)>, time: Res<Time>) {
+    for (mut fading, mut text) in fading_query.iter_mut() {
+        fading.elapsed += time.delta_seconds();
+        let alpha = 1.0 - (fading.elapsed / fading.duration).min(1.0);
+        for section in text.sections.iter_mut() {
+            section.style.color.set_a(alpha);
+        }
     }
 }
 
@@ -976,10 +1025,10 @@ fn ship_powerup_collision_system(
 fn ship_asteroid_collision_system(
     mut commands: Commands,
     sprite_sheets: Res<SpriteSheets>,
-    mut ships_query: Query<(&mut Ship, &mut Transform, &mut Moving, &CollisionShape)>,
+    mut ships_query: Query<(&mut Ship, &Transform, &mut Moving, &CollisionShape)>,
     asteroids_query: Query<(&Transform, &Moving, &CollisionShape), (With<Asteroid>, Without<Ship>)>,
 ) {
-    for (mut ship, mut ship_transform, mut ship_moving, ship_shape) in ships_query.iter_mut() {
+    for (mut ship, ship_transform, mut ship_moving, ship_shape) in ships_query.iter_mut() {
         if ship.invulnerability > 0.0 {
             continue;
         }
@@ -1010,10 +1059,10 @@ fn ship_asteroid_collision_system(
 fn ship_ufo_collision_system(
     mut commands: Commands,
     sprite_sheets: Res<SpriteSheets>,
-    mut ships_query: Query<(&mut Ship, &mut Transform, &mut Moving, &CollisionShape)>,
+    mut ships_query: Query<(&mut Ship, &Transform, &mut Moving, &CollisionShape)>,
     ufo_query: Query<(&Transform, &Moving, &CollisionShape), (With<Ufo>, Without<Ship>)>,
 ) {
-    for (mut ship, mut ship_transform, mut ship_moving, ship_shape) in ships_query.iter_mut() {
+    for (mut ship, ship_transform, mut ship_moving, ship_shape) in ships_query.iter_mut() {
         if ship.invulnerability > 0.0 {
             continue;
         }
@@ -1042,11 +1091,11 @@ fn ship_ufo_collision_system(
 
 fn ship_ufo_laser_collision_system(
     mut commands: Commands,
-    mut ships_query: Query<(&mut Ship, &mut Transform, &mut Moving)>,
+    mut ships_query: Query<(&mut Ship, &Transform, &mut Moving)>,
     ufo_laser_query: Query<(&Transform, &Moving), (With<UfoLaser>, Without<Ship>)>,
     sprite_sheets: Res<SpriteSheets>,
 ) {
-    for (mut ship, mut ship_transform, mut ship_moving) in ships_query.iter_mut() {
+    for (mut ship, ship_transform, mut ship_moving) in ships_query.iter_mut() {
         if ship.invulnerability > 0.0 {
             continue;
         }

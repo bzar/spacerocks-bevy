@@ -34,8 +34,9 @@
 - [x] Explosions
 - [x] Ship respawn delay
 - [x] Level start delay
-- [ ] Level start text animation
+- [x] Level start text animation
 - [ ] Particle effects
+- [ ] Score/powerup notifications
 - [ ] Music
 - [ ] Sounds
 - [ ] Scene system

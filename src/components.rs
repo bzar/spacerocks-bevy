@@ -126,6 +126,19 @@ pub struct Spinning {
 }
 
 #[derive(Component)]
+pub struct Scaling {
+    pub scale: f32,
+    pub duration: f32,
+    pub elapsed: f32,
+}
+
+#[derive(Component)]
+pub struct Fading {
+    pub duration: f32,
+    pub elapsed: f32,
+}
+
+#[derive(Component)]
 pub struct Wrapping;
 
 #[derive(Component)]
