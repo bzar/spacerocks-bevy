@@ -55,6 +55,13 @@ pub struct ExplosionImages {
     pub normal: Vec<Handle<Image>>,
 }
 
+#[derive(Default)]
+pub struct ParticleImages {
+    pub spark: Handle<Image>,
+    pub corona: Handle<Image>,
+    pub ring: Handle<Image>,
+    pub wave: Handle<Image>,
+}
 #[derive(Default, Resource)]
 pub struct SpriteSheets {
     pub asteroids: Handle<TextureAtlas>,
@@ -63,6 +70,7 @@ pub struct SpriteSheets {
     pub ufo: UfoImages,
     pub powerup: PowerupImages,
     pub explosion: ExplosionImages,
+    pub particles: ParticleImages,
 }
 
 pub struct Level(pub u32);

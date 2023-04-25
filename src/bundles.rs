@@ -362,15 +362,109 @@ impl GameNotificationBundle {
                 ..Default::default()
             },
             scaling: Scaling {
-                scale: 2.0,
+                from: 1.0,
+                to: 2.0,
                 duration,
                 elapsed: 0.0,
             },
             fading: Fading {
+                from: 0.5,
+                to: 0.0,
                 duration,
                 elapsed: 0.0,
             },
             expiring: Expiring { life: duration },
+        }
+    }
+}
+
+#[derive(Bundle)]
+pub struct WaveParticleBundle {
+    sprite_bundle: SpriteBundle,
+    expiring: Expiring,
+    scaling: Scaling,
+    fading: Fading,
+}
+impl WaveParticleBundle {
+    pub fn new(position: Vec2, particle_images: &ParticleImages) -> WaveParticleBundle {
+        WaveParticleBundle {
+            sprite_bundle: SpriteBundle {
+                transform: Transform {
+                    translation: position.extend(0.),
+                    scale: Vec3::splat(0.0),
+                    ..Default::default()
+                },
+                sprite: Sprite {
+                    color: Color::rgba(1.0, 1.0, 1.0, 0.1),
+                    ..Default::default()
+                },
+                texture: particle_images.wave.clone(),
+                ..Default::default()
+            },
+            expiring: Expiring { life: 1.0 },
+            scaling: Scaling {
+                from: 0.0,
+                to: 1.0,
+                duration: 1.0,
+                elapsed: 0.0,
+            },
+            fading: Fading {
+                from: 0.1,
+                to: 0.0,
+                duration: 1.0,
+                elapsed: 0.0,
+            },
+        }
+    }
+}
+#[derive(Bundle)]
+pub struct SparkParticleBundle {
+    sprite_bundle: SpriteBundle,
+    moving: Moving,
+    expiring: Expiring,
+    scaling: Scaling,
+    spinning: Spinning,
+    fading: Fading,
+}
+impl SparkParticleBundle {
+    pub fn new(
+        position: Vec2,
+        velocity: Vec2,
+        acceleration: Vec2,
+        particle_images: &ParticleImages,
+    ) -> SparkParticleBundle {
+        SparkParticleBundle {
+            sprite_bundle: SpriteBundle {
+                transform: Transform {
+                    translation: position.extend(0.),
+                    scale: Vec3::splat(0.0),
+                    ..Default::default()
+                },
+                sprite: Sprite {
+                    color: Color::rgba(1.0, 1.0, 1.0, 0.1),
+                    ..Default::default()
+                },
+                texture: particle_images.spark.clone(),
+                ..Default::default()
+            },
+            moving: Moving {
+                velocity,
+                acceleration,
+            },
+            expiring: Expiring { life: 1.0 },
+            scaling: Scaling {
+                from: 0.0,
+                to: 1.0,
+                duration: 1.0,
+                elapsed: 0.0,
+            },
+            spinning: Spinning { speed: 1.0 },
+            fading: Fading {
+                from: 1.0,
+                to: 0.0,
+                duration: 1.0,
+                elapsed: 0.0,
+            },
         }
     }
 }

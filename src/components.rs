@@ -127,13 +127,16 @@ pub struct Spinning {
 
 #[derive(Component)]
 pub struct Scaling {
-    pub scale: f32,
+    pub from: f32,
+    pub to: f32,
     pub duration: f32,
     pub elapsed: f32,
 }
 
 #[derive(Component)]
 pub struct Fading {
+    pub from: f32,
+    pub to: f32,
     pub duration: f32,
     pub elapsed: f32,
 }
@@ -254,6 +257,42 @@ impl Shape {
             _ => unimplemented!(),
         }
     }
+    pub fn collision_point(&self, other: &Shape) -> Vec2 {
+        use Shape::*;
+        match (self, other) {
+            (
+                Circle {
+                    center: c1,
+                    radius: r1,
+                },
+                Circle {
+                    center: c2,
+                    radius: r2,
+                },
+            ) => {
+                if r1 > r2 {
+                    *c1 + (*c2 - *c1).normalize() * *r1
+                } else {
+                    *c2 + (*c1 - *c2).normalize() * *r2
+                }
+            }
+            (Circle { center, radius }, Line { base, delta, width })
+            | (Line { base, delta, width }, Circle { center, radius }) => {
+                // Assumes previously verified intersection
+
+                // Find the point halfway to the other side of the circle
+                let l1q = (*center - *base).project_onto(*delta);
+                let q = l1q + *base;
+                // Use pythagorean theorem to find distance squared from halfway point to circle edge
+                let s2 = (radius + width).powi(2) - (*center - q).length_squared();
+                // Calculate relative distance from base to circle edge along l1q
+                let t = 1.0 - s2 / l1q.length_squared();
+                // Distance to edge
+                *base + l1q * t
+            }
+            _ => unimplemented!(),
+        }
+    }
 
     pub fn transformed(&self, transform: &Transform) -> Shape {
         use Shape::*;
@@ -288,5 +327,8 @@ impl CollisionShape {
     }
     pub fn distance(&self, other: &CollisionShape) -> f32 {
         self.global_shape().distance(&other.global_shape())
+    }
+    pub fn collision_point(&self, other: &CollisionShape) -> Vec2 {
+        self.global_shape().collision_point(&other.global_shape())
     }
 }

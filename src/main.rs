@@ -36,7 +36,7 @@ fn main() {
                 level_start_delay_system,
                 scaling_system,
                 expiring_system,
-                fading_text_system,
+                fading_system,
             )
                 .in_set(OnUpdate(AppState::LoadLevel)),
         )
@@ -52,7 +52,7 @@ fn main() {
                 wrapping_system,
                 expiring_system,
                 scaling_system,
-                fading_text_system,
+                fading_system,
                 animation_system,
                 collision_shape_system,
                 beam_sprite_system,
@@ -208,6 +208,12 @@ fn loading(
             .map(|path| asset_server.load(&path))
             .collect();
 
+        sprite_sheets.particles = ParticleImages {
+            spark: asset_server.load("img/spark.png"),
+            corona: asset_server.load("img/flares/corona.png"),
+            ring: asset_server.load("img/flares/tunelring.png"),
+            wave: asset_server.load("img/flares/wave.png"),
+        };
         // Loading finished
         if let Some(entity) = *loading_text {
             commands.entity(entity).despawn();
@@ -318,15 +324,24 @@ fn spinning_system(mut spinning_query: Query<(&Spinning, &mut Transform)>, time:
 fn scaling_system(mut scaling_query: Query<(&mut Scaling, &mut Transform)>, time: Res<Time>) {
     for (mut scaling, mut transform) in scaling_query.iter_mut() {
         scaling.elapsed += time.delta_seconds();
-        transform.scale = Vec3::splat(lerp(1.0, scaling.scale, scaling.elapsed / scaling.duration))
+        let scale = lerp(scaling.from, scaling.to, scaling.elapsed / scaling.duration);
+        transform.scale = Vec3::splat(scale);
     }
 }
-fn fading_text_system(mut fading_query: Query<(&mut Fading, &mut Text)>, time: Res<Time>) {
-    for (mut fading, mut text) in fading_query.iter_mut() {
+fn fading_system(
+    mut fading_query: Query<(&mut Fading, Option<&mut Text>, Option<&mut Sprite>)>,
+    time: Res<Time>,
+) {
+    for (mut fading, text, sprite) in fading_query.iter_mut() {
         fading.elapsed += time.delta_seconds();
-        let alpha = 1.0 - (fading.elapsed / fading.duration).min(1.0);
-        for section in text.sections.iter_mut() {
-            section.style.color.set_a(alpha);
+        let alpha = lerp(fading.from, fading.to, fading.elapsed / fading.duration);
+        if let Some(mut text) = text {
+            for section in text.sections.iter_mut() {
+                section.style.color.set_a(alpha);
+            }
+        }
+        if let Some(mut sprite) = sprite {
+            sprite.color.set_a(alpha);
         }
     }
 }
@@ -649,7 +664,8 @@ fn ship_projectile_asteroid_hit_system(
         &mut CollisionShape,
         Option<&mut Beam>,
     )>,
-    mut asteroids: Query<(&mut Asteroid, &CollisionShape), Without<ShipProjectile>>,
+    mut asteroids: Query<(&mut Asteroid, &CollisionShape, &Transform), Without<ShipProjectile>>,
+    sprite_sheets: Res<SpriteSheets>,
 ) {
     for (
         projectile_entity,
@@ -659,7 +675,7 @@ fn ship_projectile_asteroid_hit_system(
         mut maybe_beam,
     ) in projectiles.iter_mut()
     {
-        for (mut asteroid, asteroid_shape) in asteroids.iter_mut() {
+        for (mut asteroid, asteroid_shape, asteroid_transform) in asteroids.iter_mut() {
             if projectile_shape.intersects(asteroid_shape) {
                 match *projectile {
                     ShipProjectile::Rapid | ShipProjectile::Spread => {
@@ -697,6 +713,20 @@ fn ship_projectile_asteroid_hit_system(
                             }
                         }
                     }
+                }
+                let point = projectile_shape.collision_point(asteroid_shape);
+                let direction = (point - asteroid_transform.translation.truncate()).normalize();
+                for _ in 0..10 {
+                    let speed = lerp(10.0, 100.0, random());
+                    let velocity =
+                        (direction + (direction.perp() * lerp(-0.5, 0.5, random()))) * speed;
+                    let acceleration = Vec2::ZERO;
+                    commands.spawn(SparkParticleBundle::new(
+                        point,
+                        velocity,
+                        acceleration,
+                        &sprite_sheets.particles,
+                    ));
                 }
             }
         }
@@ -1081,6 +1111,10 @@ fn ship_asteroid_collision_system(
                     commands.spawn(ExplosionBundle::new(
                         &sprite_sheets.explosion,
                         ship_position,
+                    ));
+                    commands.spawn(WaveParticleBundle::new(
+                        ship_position,
+                        &sprite_sheets.particles,
                     ));
                 }
             }

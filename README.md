@@ -44,6 +44,7 @@
 - [ ] Game over
 - [ ] High Score
 - [ ] View letterboxing
+- [ ] Gamepad controls
 
 ### Known bugs
 
@@ -54,3 +55,4 @@
 - Sometimes a Ufo spawns multiple Powerups
 - Asteroid despawns sometimes cause multiple despawn errors
 - Some entities are not despawned on level change (projectiles)
+- Shield doesn't help sometimes
