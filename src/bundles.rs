@@ -418,6 +418,42 @@ impl WaveParticleBundle {
     }
 }
 #[derive(Bundle)]
+pub struct CoronaParticleBundle {
+    sprite_bundle: SpriteBundle,
+    expiring: Expiring,
+    fading: Fading,
+}
+impl CoronaParticleBundle {
+    pub fn new(
+        position: Vec2,
+        size: f32,
+        particle_images: &ParticleImages,
+    ) -> CoronaParticleBundle {
+        CoronaParticleBundle {
+            sprite_bundle: SpriteBundle {
+                transform: Transform {
+                    translation: position.extend(0.),
+                    scale: Vec3::splat(size),
+                    ..Default::default()
+                },
+                sprite: Sprite {
+                    color: Color::rgba(1.0, 1.0, 1.0, 0.1),
+                    ..Default::default()
+                },
+                texture: particle_images.corona.clone(),
+                ..Default::default()
+            },
+            expiring: Expiring { life: 1.0 },
+            fading: Fading {
+                from: 0.1,
+                to: 0.0,
+                duration: 1.0,
+                elapsed: 0.0,
+            },
+        }
+    }
+}
+#[derive(Bundle)]
 pub struct SparkParticleBundle {
     sprite_bundle: SpriteBundle,
     moving: Moving,

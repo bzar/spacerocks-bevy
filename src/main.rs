@@ -767,6 +767,11 @@ fn asteroid_split_system(
                 20.0,
                 1.0,
             ));
+            commands.spawn(CoronaParticleBundle::new(
+                transform.translation.truncate(),
+                asteroid.size.radius() / AsteroidSize::Large.radius(),
+                &sprite_sheets.particles,
+            ));
             commands.entity(asteroid_entity).despawn();
             if let Some(size) = asteroid.size.smaller() {
                 let direction = (transform.rotation * transform.translation)
@@ -985,27 +990,41 @@ fn ship_projectile_ufo_hit_system(
                         }
                     }
                 }
+
+                let point = projectile_shape.collision_point(ufo_shape);
+                let direction = (point - ufo_transform.translation.truncate()).normalize();
+                for _ in 0..10 {
+                    let speed = lerp(10.0, 100.0, random());
+                    let velocity =
+                        (direction + (direction.perp() * lerp(-0.5, 0.5, random()))) * speed;
+                    let acceleration = Vec2::ZERO;
+                    commands.spawn(SparkParticleBundle::new(
+                        point,
+                        velocity,
+                        acceleration,
+                        &sprite_sheets.particles,
+                    ));
+                }
             }
             if ufo.life <= 0 {
                 let speed = lerp(30.0, 80.0, random());
                 let velocity = Vec2::from_angle(random::<f32>() * std::f32::consts::TAU) * speed;
+                let position = ufo_transform.translation.truncate();
                 commands.spawn(PowerupBundle::new(
                     random(),
-                    ufo_transform.translation.truncate(),
+                    position,
                     velocity,
                     5.0,
                     &sprite_sheets.powerup,
                 ));
-                commands.spawn(ExplosionBundle::new(
-                    &sprite_sheets.explosion,
-                    ufo_transform.translation.truncate(),
-                ));
+                commands.spawn(ExplosionBundle::new(&sprite_sheets.explosion, position));
+                commands.spawn(WaveParticleBundle::new(position, &sprite_sheets.particles));
                 let score = 100;
                 game_state.score += score;
                 commands.spawn(GameNotificationBundle::new(
                     format!("{}", score),
                     asset_server.load("fonts/DejaVuSans.ttf"),
-                    ufo_transform.translation.truncate(),
+                    position,
                     20.0,
                     1.0,
                 ));
@@ -1149,6 +1168,10 @@ fn ship_ufo_collision_system(
                         &sprite_sheets.explosion,
                         ship_position,
                     ));
+                    commands.spawn(WaveParticleBundle::new(
+                        ship_position,
+                        &sprite_sheets.particles,
+                    ));
                 }
             }
         }
@@ -1184,6 +1207,10 @@ fn ship_ufo_laser_collision_system(
                     commands.spawn(ExplosionBundle::new(
                         &sprite_sheets.explosion,
                         ship_position,
+                    ));
+                    commands.spawn(WaveParticleBundle::new(
+                        ship_position,
+                        &sprite_sheets.particles,
                     ));
                 }
             }
