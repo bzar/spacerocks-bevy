@@ -417,6 +417,46 @@ impl WaveParticleBundle {
         }
     }
 }
+
+#[derive(Bundle)]
+pub struct RingParticleBundle {
+    sprite_bundle: SpriteBundle,
+    expiring: Expiring,
+    scaling: Scaling,
+    fading: Fading,
+}
+impl RingParticleBundle {
+    pub fn new(position: Vec2, particle_images: &ParticleImages) -> RingParticleBundle {
+        RingParticleBundle {
+            sprite_bundle: SpriteBundle {
+                transform: Transform {
+                    translation: position.extend(0.),
+                    scale: Vec3::splat(0.0),
+                    ..Default::default()
+                },
+                sprite: Sprite {
+                    color: Color::rgba(1.0, 1.0, 1.0, 0.1),
+                    ..Default::default()
+                },
+                texture: particle_images.ring.clone(),
+                ..Default::default()
+            },
+            expiring: Expiring { life: 1.0 },
+            scaling: Scaling {
+                from: 0.0,
+                to: 1.0,
+                duration: 1.0,
+                elapsed: 0.0,
+            },
+            fading: Fading {
+                from: 0.2,
+                to: 0.0,
+                duration: 1.0,
+                elapsed: 0.0,
+            },
+        }
+    }
+}
 #[derive(Bundle)]
 pub struct CoronaParticleBundle {
     sprite_bundle: SpriteBundle,

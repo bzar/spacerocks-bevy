@@ -100,7 +100,17 @@ fn init(
     mut sprite_sheets: ResMut<SpriteSheets>,
 ) {
     sprite_sheets.images = asset_server.load_folder("img").unwrap();
-    commands.spawn(Camera2dBundle::default());
+    commands.spawn(Camera2dBundle {
+        projection: OrthographicProjection {
+            scaling_mode: bevy::render::camera::ScalingMode::AutoMin {
+                min_width: 800.0,
+                min_height: 480.0,
+            },
+            area: Rect::from_center_size(Vec2::ZERO, Vec2::new(800.0, 480.0)),
+            ..Default::default()
+        },
+        ..Default::default()
+    });
 }
 
 fn loading(
@@ -211,7 +221,7 @@ fn loading(
         sprite_sheets.particles = ParticleImages {
             spark: asset_server.load("img/spark.png"),
             corona: asset_server.load("img/flares/corona.png"),
-            ring: asset_server.load("img/flares/tunelring.png"),
+            ring: asset_server.load("img/flares/tunelring-alpha.png"),
             wave: asset_server.load("img/flares/wave.png"),
         };
         // Loading finished
@@ -1056,6 +1066,7 @@ fn ship_powerup_collision_system(
     mut ships_query: Query<(&mut Ship, &CollisionShape, &Transform)>,
     powerups_query: Query<(Entity, &Powerup, &CollisionShape)>,
     asset_server: Res<AssetServer>,
+    sprite_sheets: Res<SpriteSheets>,
 ) {
     for (mut ship, ship_shape, transform) in ships_query.iter_mut() {
         for (powerup_entity, powerup, powerup_shape) in powerups_query.iter() {
@@ -1091,13 +1102,15 @@ fn ship_powerup_collision_system(
                     }
                 };
                 commands.entity(powerup_entity).despawn();
+                let position = transform.translation.truncate();
                 commands.spawn(GameNotificationBundle::new(
                     text.to_owned(),
                     asset_server.load("fonts/DejaVuSans.ttf"),
-                    transform.translation.truncate(),
+                    position,
                     20.0,
                     1.0,
                 ));
+                commands.spawn(RingParticleBundle::new(position, &sprite_sheets.particles));
             }
         }
     }
