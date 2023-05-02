@@ -1,4 +1,4 @@
-use bevy::{asset::LoadState, prelude::*};
+use bevy::{asset::LoadState, prelude::*, render::camera::Viewport, sprite::Anchor};
 use rand::{random, thread_rng, Rng};
 
 mod bundles;
@@ -42,6 +42,7 @@ fn main() {
         )
         .add_systems(
             (
+                viewport_system,
                 ship_control_system,
                 ship_physics,
                 ship_sprite,
@@ -98,21 +99,51 @@ fn init(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut sprite_sheets: ResMut<SpriteSheets>,
+    window_query: Query<&Window>,
 ) {
+    let window = window_query.single();
     sprite_sheets.images = asset_server.load_folder("img").unwrap();
     commands.spawn(Camera2dBundle {
         projection: OrthographicProjection {
             scaling_mode: bevy::render::camera::ScalingMode::AutoMin {
-                min_width: 800.0,
-                min_height: 480.0,
+                min_width: GAME_WIDTH as f32,
+                min_height: GAME_HEIGHT as f32,
             },
             area: Rect::from_center_size(Vec2::ZERO, Vec2::new(800.0, 480.0)),
             ..Default::default()
+        },
+        camera: Camera {
+            viewport: Some(window_to_viewport(window, GAME_WIDTH, GAME_HEIGHT)),
+            ..default()
         },
         ..Default::default()
     });
 }
 
+fn window_to_viewport(window: &Window, width: u32, height: u32) -> Viewport {
+    let physical_size = UVec2::new(
+        window
+            .physical_width()
+            .min(window.physical_height() * width / height),
+        window
+            .physical_height()
+            .min(window.physical_width() * height / width),
+    );
+    let physical_position = UVec2::new(
+        (window.physical_width().max(physical_size.x) - physical_size.x) / 2,
+        (window.physical_height().max(physical_size.y) - physical_size.y) / 2,
+    );
+    Viewport {
+        physical_position,
+        physical_size,
+        ..default()
+    }
+}
+fn viewport_system(mut camera_query: Query<&mut Camera>, window_query: Query<&Window>) {
+    let mut camera = camera_query.single_mut();
+    let window = window_query.single();
+    camera.viewport = Some(window_to_viewport(window, GAME_WIDTH, GAME_HEIGHT));
+}
 fn loading(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -288,14 +319,27 @@ fn load_level(
     }
 
     commands
-        .spawn(TextBundle::from_section(
-            "",
-            TextStyle {
-                font: asset_server.load("fonts/DejaVuSans.ttf"),
-                font_size: 20.0,
-                color: Color::WHITE,
+        .spawn(Text2dBundle {
+            text: Text {
+                sections: vec![TextSection::new(
+                    "",
+                    TextStyle {
+                        font: asset_server.load("fonts/DejaVuSans.ttf"),
+                        font_size: 20.0,
+                        color: Color::WHITE,
+                    },
+                )],
+                alignment: TextAlignment::Left,
+                ..default()
             },
-        ))
+            text_anchor: Anchor::TopLeft,
+            transform: Transform::from_xyz(
+                (GAME_WIDTH as f32) / 12.0,
+                (GAME_HEIGHT as f32) / 2.0,
+                -0.01,
+            ),
+            ..default()
+        })
         .insert(HUD::default())
         .insert(LevelEntity);
 

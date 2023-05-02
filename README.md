@@ -36,6 +36,7 @@
 - [x] Level start delay
 - [x] Level start text animation
 - [ ] Particle effects
+  - [ ] Additive alpha blending
 - [x] Score/powerup notifications
 - [ ] Music
 - [ ] Sounds

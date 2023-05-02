@@ -1,3 +1,5 @@
+pub const GAME_WIDTH: u32 = 800;
+pub const GAME_HEIGHT: u32 = 480;
 pub const LEVEL_START_DELAY: f32 = 3.0;
 pub const ASTEROID_SIZES: usize = 4;
 pub const ASTEROID_VARIANTS: usize = 12;
