@@ -1,9 +1,10 @@
-use bevy::{asset::LoadState, prelude::*, render::camera::Viewport, sprite::Anchor};
+use bevy::{asset::LoadState, prelude::*, sprite::Anchor};
 use rand::{random, thread_rng, Rng};
 
 mod bundles;
 mod components;
 mod constants;
+mod plugins;
 mod resources;
 mod utils;
 
@@ -20,6 +21,7 @@ enum AppState {
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
+        .add_plugin(plugins::CameraPlugin)
         .insert_resource(SpriteSheets::default())
         .insert_resource(GameState {
             level: Level(0),
@@ -42,7 +44,6 @@ fn main() {
         )
         .add_systems(
             (
-                viewport_system,
                 ship_control_system,
                 ship_physics,
                 ship_sprite,
@@ -95,54 +96,8 @@ fn despawn_tagged<T: Component>(mut commands: Commands, query: Query<Entity, Wit
     }
 }
 
-fn init(
-    mut commands: Commands,
-    asset_server: Res<AssetServer>,
-    mut sprite_sheets: ResMut<SpriteSheets>,
-    window_query: Query<&Window>,
-) {
-    let window = window_query.single();
+fn init(asset_server: Res<AssetServer>, mut sprite_sheets: ResMut<SpriteSheets>) {
     sprite_sheets.images = asset_server.load_folder("img").unwrap();
-    commands.spawn(Camera2dBundle {
-        projection: OrthographicProjection {
-            scaling_mode: bevy::render::camera::ScalingMode::AutoMin {
-                min_width: GAME_WIDTH as f32,
-                min_height: GAME_HEIGHT as f32,
-            },
-            area: Rect::from_center_size(Vec2::ZERO, Vec2::new(800.0, 480.0)),
-            ..Default::default()
-        },
-        camera: Camera {
-            viewport: Some(window_to_viewport(window, GAME_WIDTH, GAME_HEIGHT)),
-            ..default()
-        },
-        ..Default::default()
-    });
-}
-
-fn window_to_viewport(window: &Window, width: u32, height: u32) -> Viewport {
-    let physical_size = UVec2::new(
-        window
-            .physical_width()
-            .min(window.physical_height() * width / height),
-        window
-            .physical_height()
-            .min(window.physical_width() * height / width),
-    );
-    let physical_position = UVec2::new(
-        (window.physical_width().max(physical_size.x) - physical_size.x) / 2,
-        (window.physical_height().max(physical_size.y) - physical_size.y) / 2,
-    );
-    Viewport {
-        physical_position,
-        physical_size,
-        ..default()
-    }
-}
-fn viewport_system(mut camera_query: Query<&mut Camera>, window_query: Query<&Window>) {
-    let mut camera = camera_query.single_mut();
-    let window = window_query.single();
-    camera.viewport = Some(window_to_viewport(window, GAME_WIDTH, GAME_HEIGHT));
 }
 fn loading(
     mut commands: Commands,
