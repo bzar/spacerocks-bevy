@@ -318,31 +318,6 @@ fn load_level(
         }
     }
 
-    commands
-        .spawn(Text2dBundle {
-            text: Text {
-                sections: vec![TextSection::new(
-                    "",
-                    TextStyle {
-                        font: asset_server.load("fonts/DejaVuSans.ttf"),
-                        font_size: 20.0,
-                        color: Color::WHITE,
-                    },
-                )],
-                alignment: TextAlignment::Left,
-                ..default()
-            },
-            text_anchor: Anchor::TopLeft,
-            transform: Transform::from_xyz(
-                (GAME_WIDTH as f32) / 12.0,
-                (GAME_HEIGHT as f32) / 2.0,
-                -0.01,
-            ),
-            ..default()
-        })
-        .insert(HUD::default())
-        .insert(LevelEntity);
-
     commands.spawn(GameNotificationBundle::new(
         format!("Level {}", game_state.level.0),
         asset_server.load("fonts/DejaVuSans.ttf"),
@@ -1279,52 +1254,101 @@ fn update_hud_system(
     ships_query: Query<&Ship>,
     game_state: Res<GameState>,
     mut hud_query: Query<&mut HUD>,
+    mut commands: Commands,
 ) {
     let ship = ships_query.single();
-    for mut hud in hud_query.iter_mut() {
-        let new_hud = HUD {
-            level: game_state.level.0,
-            score: game_state.score,
-            lives: ship.lives,
-            weapon: ship.weapon,
-            weapon_rapid_level: ship.weapon_rapid_level,
-            weapon_spread_level: ship.weapon_spread_level,
-            weapon_beam_level: ship.weapon_beam_level,
-            weapon_plasma_level: ship.weapon_plasma_level,
-        };
+    let new_hud = HUD {
+        level: game_state.level.0,
+        score: game_state.score,
+        lives: ship.lives,
+        weapon: ship.weapon,
+        weapon_rapid_level: ship.weapon_rapid_level,
+        weapon_spread_level: ship.weapon_spread_level,
+        weapon_beam_level: ship.weapon_beam_level,
+        weapon_plasma_level: ship.weapon_plasma_level,
+        changed: false,
+    };
+    if hud_query.is_empty() {
+        commands.spawn(HUD {
+            changed: true,
+            ..new_hud
+        });
+    } else {
+        let mut hud = hud_query.single_mut();
         if *hud != new_hud {
             *hud = new_hud;
+            hud.changed = true;
         }
     }
 }
 
-fn update_hud_text_system(mut hud_query: Query<(&HUD, &mut Text), Changed<HUD>>) {
-    for (hud, mut text) in hud_query.iter_mut() {
-        fn weapon_text(name: &str, level: u8, selected: bool) -> String {
-            match (level, selected) {
-                (0, _) => String::new(),
-                (level, true) => format!("[{name}{level}]"),
-                (level, false) => format!("{name}{level}"),
-            }
-        }
-        let weapons = [
-            (ShipWeapon::Rapid, "L", hud.weapon_rapid_level),
-            (ShipWeapon::Spread, "S", hud.weapon_spread_level),
-            (ShipWeapon::Beam, "B", hud.weapon_beam_level),
-            (ShipWeapon::Plasma, "P", hud.weapon_plasma_level),
-        ]
-        .map(|(weapon, name, level)| weapon_text(name, level, weapon == hud.weapon));
-
-        let hud_text = format!(
-            "Level: {} | Score: {} | Lives: {} | Weapons: {}",
-            hud.level,
-            hud.score,
-            hud.lives,
-            &weapons.join(" ")
-        );
-        dbg!(&hud_text);
-        text.sections[0].value = hud_text;
+fn update_hud_text_system(
+    mut commands: Commands,
+    mut hud_query: Query<(Entity, &HUD)>,
+    asset_server: Res<AssetServer>,
+) {
+    // FIXME: The HUD system originally user Changed<HUD> to update the Text.sections
+    //        but for some reasons that caused the HUD to sometimes not render at all
+    //        Creating a new text bundle for every update and using the changed property
+    //        for HUD is a workaround that seems to work.
+    if hud_query.is_empty() {
+        return;
     }
+    let (entity, hud) = hud_query.single_mut();
+    if !hud.changed {
+        return;
+    }
+    fn weapon_text(name: &str, level: u8, selected: bool) -> String {
+        match (level, selected) {
+            (0, _) => String::new(),
+            (level, true) => format!("[{name}{level}]"),
+            (level, false) => format!("{name}{level}"),
+        }
+    }
+    let weapons = [
+        (ShipWeapon::Rapid, "L", hud.weapon_rapid_level),
+        (ShipWeapon::Spread, "S", hud.weapon_spread_level),
+        (ShipWeapon::Beam, "B", hud.weapon_beam_level),
+        (ShipWeapon::Plasma, "P", hud.weapon_plasma_level),
+    ]
+    .map(|(weapon, name, level)| weapon_text(name, level, weapon == hud.weapon));
+
+    let hud_text = format!(
+        "Level: {} | Score: {} | Lives: {} | Weapons: {}",
+        hud.level,
+        hud.score,
+        hud.lives,
+        &weapons.join(" ")
+    );
+
+    commands.entity(entity).despawn();
+    commands
+        .spawn(Text2dBundle {
+            text: Text {
+                sections: vec![TextSection::new(
+                    hud_text,
+                    TextStyle {
+                        font: asset_server.load("fonts/DejaVuSans.ttf"),
+                        font_size: 20.0,
+                        color: Color::WHITE,
+                    },
+                )],
+                alignment: TextAlignment::Left,
+                ..default()
+            },
+            text_anchor: Anchor::TopRight,
+            transform: Transform::from_xyz(
+                -(GAME_WIDTH as f32) / 2.05,
+                (GAME_HEIGHT as f32) / 2.05,
+                -0.01,
+            ),
+            ..default()
+        })
+        .insert(HUD {
+            changed: false,
+            ..*hud
+        })
+        .insert(LevelEntity);
 }
 
 fn animation_system(

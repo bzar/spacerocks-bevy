@@ -157,6 +157,7 @@ pub struct HUD {
     pub weapon_spread_level: u8,
     pub weapon_beam_level: u8,
     pub weapon_plasma_level: u8,
+    pub changed: bool,
 }
 
 #[derive(Component, Default)]

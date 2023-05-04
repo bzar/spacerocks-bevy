@@ -49,7 +49,6 @@
 
 ### Known bugs
 
-- UI does not update correctly on some runs
 - Beam weapon collision does not match the graphics
 - Ufo lasers cause too big bounce with shield
 - Beam sometimes gets stuck
