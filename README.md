@@ -35,16 +35,17 @@
 - [x] Ship respawn delay
 - [x] Level start delay
 - [x] Level start text animation
-- [ ] Particle effects
+- [x] Particle effects
   - [ ] Additive alpha blending
 - [x] Score/powerup notifications
 - [ ] Music
 - [ ] Sounds
 - [ ] Scene system
-- [ ] Title
+- [x] Title
+  - [ ] Title animation
 - [ ] Game over
 - [ ] High Score
-- [ ] View letterboxing
+- [x] View letterboxing
 - [ ] Gamepad controls
 
 ### Known bugs

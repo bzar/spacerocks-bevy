@@ -12,10 +12,11 @@ use crate::{bundles::*, components::*, constants::*, resources::*, utils::*};
 
 #[derive(Debug, Clone, Copy, Default, Eq, PartialEq, Hash, States)]
 enum AppState {
-    LoadLevel,
-    InGame,
     #[default]
     Loading,
+    Title,
+    LoadLevel,
+    InGame,
 }
 
 fn main() {
@@ -32,6 +33,9 @@ fn main() {
         .add_system(init.on_startup())
         .add_state::<AppState>()
         .add_system(loading.in_set(OnUpdate(AppState::Loading)))
+        .add_system(init_title.in_schedule(OnEnter(AppState::Title)))
+        .add_system(despawn_tagged::<TitleEntity>.in_schedule(OnExit(AppState::Title)))
+        .add_system(title_input.in_set(OnUpdate(AppState::Title)))
         .add_system(load_level.in_schedule(OnEnter(AppState::LoadLevel)))
         .add_systems(
             (
@@ -214,10 +218,66 @@ fn loading(
         if let Some(entity) = *loading_text {
             commands.entity(entity).despawn();
         }
-        next_state.set(AppState::LoadLevel);
+        next_state.set(AppState::Title);
     }
 }
 
+fn init_title(mut commands: Commands, asset_server: Res<AssetServer>) {
+    let background = asset_server.load("img/title-background.png");
+    commands
+        .spawn(SpriteBundle {
+            texture: background,
+            ..default()
+        })
+        .insert(TitleEntity);
+
+    let space = asset_server.load("img/title-space.png");
+    commands
+        .spawn(SpriteBundle {
+            texture: space,
+            transform: Transform::from_xyz(-150.0, 50.0, 0.01),
+            ..default()
+        })
+        .insert(TitleEntity);
+    let rocks = asset_server.load("img/title-rocks.png");
+    commands
+        .spawn(SpriteBundle {
+            texture: rocks,
+            transform: Transform::from_xyz(0.0, -50.0, 0.01),
+            ..default()
+        })
+        .insert(TitleEntity);
+    let exclamation = asset_server.load("img/title-exclamation.png");
+    commands
+        .spawn(SpriteBundle {
+            texture: exclamation,
+            transform: Transform::from_xyz(320.0, 80.0, 0.01),
+            ..default()
+        })
+        .insert(TitleEntity);
+    let start = asset_server.load("img/title-start.png");
+    commands
+        .spawn(SpriteBundle {
+            texture: start,
+            transform: Transform::from_xyz(0.0, -200.0, 0.01),
+            ..default()
+        })
+        .insert(TitleEntity);
+}
+fn title_input(
+    mut game_state: ResMut<GameState>,
+    keyboard_input: Res<Input<KeyCode>>,
+    mut next_state: ResMut<NextState<AppState>>,
+) {
+    if keyboard_input.just_pressed(KeyCode::Space) {
+        *game_state = GameState {
+            level: Level(0),
+            score: 0,
+            next_ufo_score: random_ufo_interval(),
+        };
+        next_state.set(AppState::LoadLevel)
+    }
+}
 fn load_level(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
