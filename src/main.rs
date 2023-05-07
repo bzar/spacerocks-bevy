@@ -22,20 +22,14 @@ enum AppState {
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_plugin(plugins::CameraPlugin)
         .insert_resource(SpriteSheets::default())
-        .insert_resource(GameState {
-            level: Level(0),
-            score: 0,
-            next_ufo_score: random_ufo_interval(),
-        })
+        .insert_resource(GameState::new_game())
         .insert_resource(LevelStartDelayTimer::default())
         .add_system(init.on_startup())
         .add_state::<AppState>()
+        .add_plugin(plugins::CameraPlugin)
+        .add_plugin(plugins::TitleScreenPlugin)
         .add_system(loading.in_set(OnUpdate(AppState::Loading)))
-        .add_system(init_title.in_schedule(OnEnter(AppState::Title)))
-        .add_system(despawn_tagged::<TitleEntity>.in_schedule(OnExit(AppState::Title)))
-        .add_system(title_input.in_set(OnUpdate(AppState::Title)))
         .add_system(load_level.in_schedule(OnEnter(AppState::LoadLevel)))
         .add_systems(
             (
@@ -222,62 +216,6 @@ fn loading(
     }
 }
 
-fn init_title(mut commands: Commands, asset_server: Res<AssetServer>) {
-    let background = asset_server.load("img/title-background.png");
-    commands
-        .spawn(SpriteBundle {
-            texture: background,
-            ..default()
-        })
-        .insert(TitleEntity);
-
-    let space = asset_server.load("img/title-space.png");
-    commands
-        .spawn(SpriteBundle {
-            texture: space,
-            transform: Transform::from_xyz(-150.0, 50.0, 0.01),
-            ..default()
-        })
-        .insert(TitleEntity);
-    let rocks = asset_server.load("img/title-rocks.png");
-    commands
-        .spawn(SpriteBundle {
-            texture: rocks,
-            transform: Transform::from_xyz(0.0, -50.0, 0.01),
-            ..default()
-        })
-        .insert(TitleEntity);
-    let exclamation = asset_server.load("img/title-exclamation.png");
-    commands
-        .spawn(SpriteBundle {
-            texture: exclamation,
-            transform: Transform::from_xyz(320.0, 80.0, 0.01),
-            ..default()
-        })
-        .insert(TitleEntity);
-    let start = asset_server.load("img/title-start.png");
-    commands
-        .spawn(SpriteBundle {
-            texture: start,
-            transform: Transform::from_xyz(0.0, -200.0, 0.01),
-            ..default()
-        })
-        .insert(TitleEntity);
-}
-fn title_input(
-    mut game_state: ResMut<GameState>,
-    keyboard_input: Res<Input<KeyCode>>,
-    mut next_state: ResMut<NextState<AppState>>,
-) {
-    if keyboard_input.just_pressed(KeyCode::Space) {
-        *game_state = GameState {
-            level: Level(0),
-            score: 0,
-            next_ufo_score: random_ufo_interval(),
-        };
-        next_state.set(AppState::LoadLevel)
-    }
-}
 fn load_level(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -861,7 +799,7 @@ fn ufo_spawn_system(
     sprite_sheets: Res<SpriteSheets>,
 ) {
     if game_state.score >= game_state.next_ufo_score {
-        game_state.next_ufo_score += random_ufo_interval();
+        game_state.update_ufo_score();
         let horizontal: bool = random();
         let direction: bool = random();
         let span = if horizontal { 800.0 } else { 480.0 };
@@ -959,11 +897,6 @@ fn ufo_shoot_system(
             ));
         }
     }
-}
-fn random_ufo_interval() -> u32 {
-    const MIN: f32 = 400.0;
-    const MAX: f32 = 800.0;
-    (random::<f32>() * (MAX - MIN) + MIN) as u32
 }
 fn asteroid_score(size: AsteroidSize) -> u32 {
     match size {

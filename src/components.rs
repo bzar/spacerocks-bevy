@@ -147,9 +147,6 @@ pub struct Wrapping;
 #[derive(Component)]
 pub struct LevelEntity;
 
-#[derive(Component)]
-pub struct TitleEntity;
-
 #[derive(Component, Default, PartialEq, Eq)]
 pub struct HUD {
     pub level: u32,

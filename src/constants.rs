@@ -14,3 +14,5 @@ pub const BEAM_RECHARGE_RATE: f32 = 16.0;
 pub const BEAM_RETRACT_RATE: f32 = 8.0;
 pub const BEAM_HIT_INTERVAL: f32 = 1.0 / 3.0;
 pub const BEAM_DAMAGE_PER_HIT: i32 = 1;
+pub const MIN_UFO_SCORE_INTERVAL: f32 = 400.0;
+pub const MAX_UFO_SCORE_INTERVAL: f32 = 800.0;

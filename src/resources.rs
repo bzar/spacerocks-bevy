@@ -180,3 +180,23 @@ impl Level {
         lerp(0.6, 0.9, self.0 as f32 / 60.0)
     }
 }
+
+impl GameState {
+    pub fn new_game() -> Self {
+        Self {
+            level: Level(0),
+            score: 0,
+            next_ufo_score: random_ufo_interval(),
+        }
+    }
+    pub fn update_ufo_score(&mut self) {
+        self.next_ufo_score = self.score + random_ufo_interval();
+    }
+}
+fn random_ufo_interval() -> u32 {
+    lerp(
+        rand::random::<f32>(),
+        MIN_UFO_SCORE_INTERVAL,
+        MAX_UFO_SCORE_INTERVAL,
+    ) as u32
+}
