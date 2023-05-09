@@ -15,6 +15,7 @@ enum AppState {
     #[default]
     Loading,
     Title,
+    NewGame,
     LoadLevel,
     InGame,
 }
@@ -23,13 +24,16 @@ fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .insert_resource(SpriteSheets::default())
-        .insert_resource(GameState::new_game())
+        .insert_resource(Level(0))
+        .insert_resource(Score(0))
+        .insert_resource(NextUfoScore::new())
         .insert_resource(LevelStartDelayTimer::default())
         .add_system(init.on_startup())
         .add_state::<AppState>()
         .add_plugin(plugins::CameraPlugin)
         .add_plugin(plugins::TitleScreenPlugin)
         .add_system(loading.in_set(OnUpdate(AppState::Loading)))
+        .add_system(new_game.in_schedule(OnEnter(AppState::NewGame)))
         .add_system(load_level.in_schedule(OnEnter(AppState::LoadLevel)))
         .add_systems(
             (
@@ -216,22 +220,32 @@ fn loading(
     }
 }
 
+fn new_game(
+    mut level: ResMut<Level>,
+    mut score: ResMut<Score>,
+    mut next_ufo_score: ResMut<NextUfoScore>,
+    mut next_state: ResMut<NextState<AppState>>,
+) {
+    *level = Level(0);
+    *score = Score(0);
+    *next_ufo_score = NextUfoScore::new();
+    next_state.set(AppState::LoadLevel);
+}
+
 fn load_level(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     sprite_sheets: Res<SpriteSheets>,
-    game_state: Res<GameState>,
+    level: Res<Level>,
     mut ships_query: Query<&mut Transform, With<Ship>>,
     mut level_start_delay_timer: ResMut<LevelStartDelayTimer>,
 ) {
-    println!("setup level {}", game_state.level.0);
+    println!("setup level {}", level.number());
 
-    let asteroid_variant = game_state.level.asteroid_variant();
+    let asteroid_variant = level.asteroid_variant();
 
-    let background_texture = asset_server.load(&format!(
-        "img/background-{}.png",
-        game_state.level.background_image()
-    ));
+    let background_texture =
+        asset_server.load(&format!("img/background-{}.png", level.background_image()));
     commands
         .spawn(SpriteBundle {
             texture: background_texture,
@@ -241,12 +255,12 @@ fn load_level(
         .insert(LevelEntity);
 
     let mut rng = thread_rng();
-    for size in game_state.level.asteroids() {
-        let distance: f32 = rng.gen_range(game_state.level.asteroid_distance_bounds());
+    for size in level.asteroids() {
+        let distance: f32 = rng.gen_range(level.asteroid_distance_bounds());
         let direction = random::<f32>() * std::f32::consts::TAU;
         let position: Vec2 = Vec2::from_angle(direction) * distance;
         let heading = random::<f32>() * std::f32::consts::TAU;
-        let speed = rng.gen_range(game_state.level.asteroid_speed_bounds());
+        let speed = rng.gen_range(level.asteroid_speed_bounds());
         let velocity = Vec2::from_angle(heading) * speed;
         let spinning_speed = random::<f32>() - 0.5;
         commands.spawn(AsteroidBundle::new(
@@ -272,7 +286,7 @@ fn load_level(
     }
 
     commands.spawn(GameNotificationBundle::new(
-        format!("Level {}", game_state.level.0),
+        format!("Level {}", level.number()),
         asset_server.load("fonts/DejaVuSans.ttf"),
         Vec2::ZERO,
         60.0,
@@ -735,15 +749,16 @@ fn asteroid_split_system(
     mut commands: Commands,
     asteroids: Query<(Entity, &Asteroid, &Transform)>,
     sprite_sheets: Res<SpriteSheets>,
-    mut game_state: ResMut<GameState>,
+    mut score: ResMut<Score>,
+    level: Res<Level>,
     asset_server: Res<AssetServer>,
 ) {
     for (asteroid_entity, asteroid, transform) in asteroids.iter() {
         if asteroid.integrity <= 0 {
-            let score = asteroid_score(asteroid.size);
-            game_state.score += score;
+            let score_delta = asteroid_score(asteroid.size);
+            score.increase(score_delta);
             commands.spawn(GameNotificationBundle::new(
-                format!("{}", score),
+                format!("{}", score_delta),
                 asset_server.load("fonts/DejaVuSans.ttf"),
                 transform.translation.truncate(),
                 20.0,
@@ -762,7 +777,7 @@ fn asteroid_split_system(
                 let data = [direction, -direction]
                     .into_iter()
                     .cycle()
-                    .take(game_state.level.asteroid_frag_count() as usize);
+                    .take(level.asteroid_frag_count() as usize);
 
                 let position = transform.translation.truncate();
                 let spinning_speed = random::<f32>() - 0.5;
@@ -784,22 +799,23 @@ fn asteroid_split_system(
 
 fn level_finished_system(
     asteroids_query: Query<Entity, With<Asteroid>>,
-    mut game_state: ResMut<GameState>,
+    mut level: ResMut<Level>,
     mut state: ResMut<NextState<AppState>>,
 ) {
     if asteroids_query.is_empty() {
-        game_state.level.increment();
+        level.increment();
         state.set(AppState::LoadLevel);
     }
 }
 
 fn ufo_spawn_system(
     mut commands: Commands,
-    mut game_state: ResMut<GameState>,
+    mut next_ufo_score: ResMut<NextUfoScore>,
+    level: Res<Level>,
+    score: Res<Score>,
     sprite_sheets: Res<SpriteSheets>,
 ) {
-    if game_state.score >= game_state.next_ufo_score {
-        game_state.update_ufo_score();
+    if next_ufo_score.bump(score.value()) {
         let horizontal: bool = random();
         let direction: bool = random();
         let span = if horizontal { 800.0 } else { 480.0 };
@@ -826,10 +842,10 @@ fn ufo_spawn_system(
             end_position: -position,
             frequency: random::<f32>() * 5.0,
             amplitude: random::<f32>() * 90.0 + 10.0,
-            duration: game_state.level.ufo_duration(),
+            duration: level.ufo_duration(),
             time: 0.0,
-            shoot_delay: game_state.level.ufo_shoot_delay(),
-            shoot_accuracy: game_state.level.ufo_shoot_accuracy(),
+            shoot_delay: level.ufo_shoot_delay(),
+            shoot_accuracy: level.ufo_shoot_accuracy(),
             life: 20,
         };
         commands.spawn(UfoBundle::new(&sprite_sheets.ufo, ufo));
@@ -918,7 +934,7 @@ fn ship_projectile_ufo_hit_system(
     mut ufos: Query<(Entity, &mut Ufo, &Transform, &CollisionShape), Without<ShipProjectile>>,
     sprite_sheets: Res<SpriteSheets>,
     asset_server: Res<AssetServer>,
-    mut game_state: ResMut<GameState>,
+    mut score: ResMut<Score>,
 ) {
     for (
         projectile_entity,
@@ -996,10 +1012,9 @@ fn ship_projectile_ufo_hit_system(
                 ));
                 commands.spawn(ExplosionBundle::new(&sprite_sheets.explosion, position));
                 commands.spawn(WaveParticleBundle::new(position, &sprite_sheets.particles));
-                let score = 100;
-                game_state.score += score;
+                score.increase(100);
                 commands.spawn(GameNotificationBundle::new(
-                    format!("{}", score),
+                    format!("{}", score.value()),
                     asset_server.load("fonts/DejaVuSans.ttf"),
                     position,
                     20.0,
@@ -1200,14 +1215,15 @@ fn ship_ufo_laser_collision_system(
 
 fn update_hud_system(
     ships_query: Query<&Ship>,
-    game_state: Res<GameState>,
+    score: Res<Score>,
+    level: Res<Level>,
     mut hud_query: Query<&mut HUD>,
     mut commands: Commands,
 ) {
     let ship = ships_query.single();
     let new_hud = HUD {
-        level: game_state.level.0,
-        score: game_state.score,
+        level: level.number(),
+        score: score.value(),
         lives: ship.lives,
         weapon: ship.weapon,
         weapon_rapid_level: ship.weapon_rapid_level,

@@ -40,9 +40,9 @@
 - [x] Score/powerup notifications
 - [ ] Music
 - [ ] Sounds
-- [ ] Scene system
+  - [ ] Game sounds
+  - [ ] Title sounds
 - [x] Title
-  - [ ] Title animation
 - [ ] Game over
 - [ ] High Score
 - [x] View letterboxing
@@ -52,8 +52,14 @@
 
 - Beam weapon collision does not match the graphics
 - Ufo lasers cause too big bounce with shield
+  - Small bounce + destroy laser?
 - Beam sometimes gets stuck
+  - Probably hit delay related
 - Sometimes a Ufo spawns multiple Powerups
+  - Probably related to the number of projectiles hitting the UFO at the same time
 - Asteroid despawns sometimes cause multiple despawn errors
+  - Probably related to the number of projectiles hitting the asteroid at the same time
 - Some entities are not despawned on level change (projectiles)
+  - Add LevelEntity
 - Shield doesn't help sometimes
+  - Probably doesn't add asteroid/ufo speed to bounce

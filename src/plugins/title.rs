@@ -1,4 +1,4 @@
-use crate::{resources::GameState, AppState};
+use crate::AppState;
 use bevy::prelude::*;
 
 #[derive(Component)]
@@ -88,14 +88,9 @@ fn init_title(mut commands: Commands, asset_server: Res<AssetServer>) {
             elapsed: 0.0,
         });
 }
-fn title_input(
-    mut game_state: ResMut<GameState>,
-    keyboard_input: Res<Input<KeyCode>>,
-    mut next_state: ResMut<NextState<AppState>>,
-) {
+fn title_input(keyboard_input: Res<Input<KeyCode>>, mut next_state: ResMut<NextState<AppState>>) {
     if keyboard_input.just_pressed(KeyCode::Space) {
-        *game_state = GameState::new_game();
-        next_state.set(AppState::LoadLevel)
+        next_state.set(AppState::NewGame)
     }
 }
 fn title_text_system(

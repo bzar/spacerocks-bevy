@@ -73,14 +73,11 @@ pub struct SpriteSheets {
     pub particles: ParticleImages,
 }
 
+#[derive(Default, Resource)]
 pub struct Level(pub u32);
 
-#[derive(Resource)]
-pub struct GameState {
-    pub level: Level,
-    pub score: u32,
-    pub next_ufo_score: u32,
-}
+#[derive(Default, Resource)]
+pub struct Score(pub u32);
 
 impl ShipImages {
     pub fn choose(&self, ship: &Ship) -> Handle<Image> {
@@ -116,6 +113,9 @@ impl ShipImages {
 }
 
 impl Level {
+    pub fn number(&self) -> u32 {
+        self.0 + 1
+    }
     pub fn increment(&mut self) {
         self.0 += 1;
     }
@@ -181,16 +181,28 @@ impl Level {
     }
 }
 
-impl GameState {
-    pub fn new_game() -> Self {
-        Self {
-            level: Level(0),
-            score: 0,
-            next_ufo_score: random_ufo_interval(),
-        }
+impl Score {
+    pub fn increase(&mut self, amount: u32) {
+        self.0 += amount;
     }
-    pub fn update_ufo_score(&mut self) {
-        self.next_ufo_score = self.score + random_ufo_interval();
+    pub fn value(&self) -> u32 {
+        self.0
+    }
+}
+#[derive(Default, Resource)]
+pub struct NextUfoScore(pub u32);
+
+impl NextUfoScore {
+    pub fn new() -> Self {
+        Self(random_ufo_interval())
+    }
+    pub fn bump(&mut self, score: u32) -> bool {
+        if score >= self.0 {
+            self.0 = score + random_ufo_interval();
+            true
+        } else {
+            false
+        }
     }
 }
 fn random_ufo_interval() -> u32 {
