@@ -89,21 +89,6 @@ pub struct Asteroid {
 }
 
 #[derive(Component)]
-pub struct Ufo {
-    pub start_position: Vec2,
-    pub end_position: Vec2,
-    pub frequency: f32,
-    pub amplitude: f32,
-    pub duration: f32,
-    pub time: f32,
-    pub shoot_delay: f32,
-    pub shoot_accuracy: f32,
-    pub life: i32,
-}
-#[derive(Component)]
-pub struct UfoLaser;
-
-#[derive(Component)]
 pub enum Powerup {
     Laser = 0,
     Spread,
@@ -146,19 +131,6 @@ pub struct Wrapping;
 
 #[derive(Component)]
 pub struct LevelEntity;
-
-#[derive(Component, Default, PartialEq, Eq)]
-pub struct HUD {
-    pub level: u32,
-    pub score: u32,
-    pub lives: u8,
-    pub weapon: ShipWeapon,
-    pub weapon_rapid_level: u8,
-    pub weapon_spread_level: u8,
-    pub weapon_beam_level: u8,
-    pub weapon_plasma_level: u8,
-    pub changed: bool,
-}
 
 #[derive(Component, Default)]
 pub struct Ship {
