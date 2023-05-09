@@ -70,6 +70,7 @@ fn main() {
                 ship_powerup_collision_system,
                 ship_asteroid_collision_system,
                 level_finished_system,
+                gameover_system,
             )
                 .in_set(OnUpdate(AppState::InGame)),
         )
@@ -210,10 +211,15 @@ fn loading(
 fn new_game(
     mut level: ResMut<Level>,
     mut score: ResMut<Score>,
+    ships_query: Query<Entity, With<Ship>>,
+    mut commands: Commands,
     mut next_state: ResMut<NextState<AppState>>,
 ) {
     *level = Level(0);
     *score = Score(0);
+    for ship_entity in ships_query.iter() {
+        commands.entity(ship_entity).despawn_recursive();
+    }
     next_state.set(AppState::LoadLevel);
 }
 
@@ -259,8 +265,17 @@ fn load_level(
     }
 
     if ships_query.is_empty() {
+        let ship = Ship {
+            weapon_rapid_level: 4,
+            weapon_spread_level: 4,
+            weapon_beam_level: 8,
+            weapon_plasma_level: 8,
+            shield_level: 2,
+            lives: 3,
+            ..Ship::default()
+        };
         commands
-            .spawn(ShipBundle::new(sprite_sheets.as_ref()))
+            .spawn(ShipBundle::new(ship, sprite_sheets.as_ref()))
             .with_children(|ship| {
                 ship.spawn(ShipShieldBundle::new(&sprite_sheets.ship));
             });
@@ -790,6 +805,25 @@ fn level_finished_system(
     if asteroids_query.is_empty() {
         level.increment();
         state.set(AppState::LoadLevel);
+    }
+}
+
+fn gameover_system(
+    ship_query: Query<&Ship>,
+    mut state: ResMut<NextState<AppState>>,
+    mut maybe_timer: Local<Option<Timer>>,
+    time: Res<Time>,
+) {
+    let ship = ship_query.single();
+    if ship.lives == 0 {
+        if let Some(timer) = maybe_timer.as_mut() {
+            if timer.tick(time.delta()).just_finished() {
+                *maybe_timer = None;
+                state.set(AppState::Title);
+            }
+        } else {
+            *maybe_timer = Some(Timer::from_seconds(3.0, TimerMode::Once))
+        }
     }
 }
 

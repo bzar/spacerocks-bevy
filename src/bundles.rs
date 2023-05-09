@@ -148,15 +148,7 @@ pub struct ShipBundle {
     collision_shape: CollisionShape,
 }
 impl ShipBundle {
-    pub fn new(sprite_sheets: &SpriteSheets) -> Self {
-        let ship = Ship {
-            weapon_rapid_level: 4,
-            weapon_spread_level: 4,
-            weapon_beam_level: 8,
-            weapon_plasma_level: 8,
-            shield_level: 2,
-            ..Ship::default()
-        };
+    pub fn new(ship: Ship, sprite_sheets: &SpriteSheets) -> Self {
         let sprite_bundle = SpriteBundle {
             texture: sprite_sheets.ship.choose(&ship),
             ..Default::default()
