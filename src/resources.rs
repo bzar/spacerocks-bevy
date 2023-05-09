@@ -189,26 +189,3 @@ impl Score {
         self.0
     }
 }
-#[derive(Default, Resource)]
-pub struct NextUfoScore(pub u32);
-
-impl NextUfoScore {
-    pub fn new() -> Self {
-        Self(random_ufo_interval())
-    }
-    pub fn bump(&mut self, score: u32) -> bool {
-        if score >= self.0 {
-            self.0 = score + random_ufo_interval();
-            true
-        } else {
-            false
-        }
-    }
-}
-fn random_ufo_interval() -> u32 {
-    lerp(
-        rand::random::<f32>(),
-        MIN_UFO_SCORE_INTERVAL,
-        MAX_UFO_SCORE_INTERVAL,
-    ) as u32
-}
