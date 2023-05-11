@@ -51,8 +51,6 @@
 ### Known bugs
 
 - Beam weapon collision does not match the graphics
-- Sometimes a Ufo spawns multiple Powerups
-  - Probably related to the number of projectiles hitting the UFO at the same time
 - Asteroid despawns sometimes cause multiple despawn errors
   - Probably related to the number of projectiles hitting the asteroid at the same time
 - Some entities are not despawned on level change (projectiles)

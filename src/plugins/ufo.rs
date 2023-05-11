@@ -15,6 +15,7 @@ impl Plugin for UfoPlugin {
                     ship_projectile_ufo_hit_system,
                     ship_ufo_collision_system,
                     ship_ufo_laser_collision_system,
+                    ufo_destroy_system,
                 )
                     .in_set(OnUpdate(AppState::InGame)),
             )
@@ -239,10 +240,8 @@ fn ship_projectile_ufo_hit_system(
         &mut CollisionShape,
         Option<&mut Beam>,
     )>,
-    mut ufos: Query<(Entity, &mut Ufo, &Transform, &CollisionShape), Without<ShipProjectile>>,
+    mut ufos: Query<(&mut Ufo, &Transform, &CollisionShape), Without<ShipProjectile>>,
     sprite_sheets: Res<SpriteSheets>,
-    asset_server: Res<AssetServer>,
-    mut score: ResMut<Score>,
 ) {
     for (
         projectile_entity,
@@ -252,8 +251,8 @@ fn ship_projectile_ufo_hit_system(
         mut maybe_beam,
     ) in projectiles.iter_mut()
     {
-        for (ufo_entity, mut ufo, ufo_transform, ufo_shape) in ufos.iter_mut() {
-            if projectile_shape.intersects(ufo_shape) {
+        for (mut ufo, ufo_transform, ufo_shape) in ufos.iter_mut() {
+            if ufo.life > 0 && projectile_shape.intersects(ufo_shape) {
                 match *projectile {
                     ShipProjectile::Rapid | ShipProjectile::Spread => {
                         commands.entity(projectile_entity).despawn();
@@ -307,34 +306,43 @@ fn ship_projectile_ufo_hit_system(
                     ));
                 }
             }
-            if ufo.life <= 0 {
-                let speed = lerp(30.0, 80.0, random());
-                let velocity = Vec2::from_angle(random::<f32>() * std::f32::consts::TAU) * speed;
-                let position = ufo_transform.translation.truncate();
-                commands.spawn(PowerupBundle::new(
-                    random(),
-                    position,
-                    velocity,
-                    5.0,
-                    &sprite_sheets.powerup,
-                ));
-                commands.spawn(ExplosionBundle::new(&sprite_sheets.explosion, position));
-                commands.spawn(WaveParticleBundle::new(position, &sprite_sheets.particles));
-                score.increase(100);
-                commands.spawn(GameNotificationBundle::new(
-                    format!("{}", score.value()),
-                    asset_server.load("fonts/DejaVuSans.ttf"),
-                    position,
-                    20.0,
-                    1.0,
-                ));
-                commands.entity(ufo_entity).despawn();
-                break;
-            }
         }
     }
 }
 
+fn ufo_destroy_system(
+    mut commands: Commands,
+    ufos_query: Query<(Entity, &Ufo, &Transform)>,
+    mut score: ResMut<Score>,
+    sprite_sheets: Res<SpriteSheets>,
+    asset_server: Res<AssetServer>,
+) {
+    for (ufo_entity, ufo, ufo_transform) in ufos_query.iter() {
+        if ufo.life <= 0 {
+            let speed = lerp(30.0, 80.0, random());
+            let velocity = Vec2::from_angle(random::<f32>() * std::f32::consts::TAU) * speed;
+            let position = ufo_transform.translation.truncate();
+            commands.spawn(PowerupBundle::new(
+                random(),
+                position,
+                velocity,
+                5.0,
+                &sprite_sheets.powerup,
+            ));
+            commands.spawn(ExplosionBundle::new(&sprite_sheets.explosion, position));
+            commands.spawn(WaveParticleBundle::new(position, &sprite_sheets.particles));
+            score.increase(100);
+            commands.spawn(GameNotificationBundle::new(
+                format!("{}", score.value()),
+                asset_server.load("fonts/DejaVuSans.ttf"),
+                position,
+                20.0,
+                1.0,
+            ));
+            commands.entity(ufo_entity).despawn();
+        }
+    }
+}
 #[derive(Bundle)]
 struct UfoBundle {
     sprite_bundle: SpriteBundle,
