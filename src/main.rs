@@ -228,7 +228,7 @@ fn load_level(
     asset_server: Res<AssetServer>,
     sprite_sheets: Res<SpriteSheets>,
     level: Res<Level>,
-    mut ships_query: Query<&mut Transform, With<Ship>>,
+    mut ships_query: Query<(&mut Transform, &mut Moving), With<Ship>>,
     mut level_start_delay_timer: ResMut<LevelStartDelayTimer>,
 ) {
     println!("setup level {}", level.number());
@@ -299,8 +299,10 @@ fn load_level(
                 });
             });
     } else {
-        for mut transform in ships_query.iter_mut() {
+        for (mut transform, mut moving) in ships_query.iter_mut() {
             transform.translation = Vec3::ZERO;
+            moving.velocity = Vec2::ZERO;
+            moving.acceleration = Vec2::ZERO;
         }
     }
 
