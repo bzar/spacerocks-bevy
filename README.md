@@ -43,7 +43,7 @@
   - [ ] Game sounds
   - [ ] Title sounds
 - [x] Title
-- [ ] Game over
+- [x] Game over
 - [ ] High Score
 - [x] View letterboxing
 - [ ] Gamepad controls
@@ -51,8 +51,6 @@
 ### Known bugs
 
 - Beam weapon collision does not match the graphics
-- Ufo lasers cause too big bounce with shield
-  - Small bounce + destroy laser?
 - Beam sometimes gets stuck
   - Probably hit delay related
 - Sometimes a Ufo spawns multiple Powerups

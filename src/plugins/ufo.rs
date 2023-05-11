@@ -198,27 +198,22 @@ fn ship_ufo_collision_system(
 
 fn ship_ufo_laser_collision_system(
     mut commands: Commands,
-    mut ships_query: Query<(&mut Ship, &Transform, &mut Moving)>,
-    ufo_laser_query: Query<(&Transform, &Moving), (With<UfoLaser>, Without<Ship>)>,
+    mut ships_query: Query<(&mut Ship, &Transform, &mut Moving, &CollisionShape)>,
+    ufo_laser_query: Query<(Entity, &Moving, &CollisionShape), (With<UfoLaser>, Without<Ship>)>,
     sprite_sheets: Res<SpriteSheets>,
 ) {
-    for (mut ship, ship_transform, mut ship_moving) in ships_query.iter_mut() {
+    for (mut ship, ship_transform, mut ship_moving, ship_collision_shape) in ships_query.iter_mut()
+    {
         if ship.invulnerability > 0.0 {
             continue;
         }
         let ship_position = ship_transform.translation.truncate();
-        for (laser_transform, laser_moving) in ufo_laser_query.iter() {
-            let laser_position = laser_transform.translation.truncate();
-            let laser_radius: f32 = 1.0;
-            let ship_radius: f32 = 16.0;
-            let distance_sq = ship_position.distance_squared(laser_position);
-            if distance_sq <= (laser_radius + ship_radius).powf(2.0) {
+        for (laser_entity, laser_moving, laser_collision_shape) in ufo_laser_query.iter() {
+            if ship_collision_shape.intersects(laser_collision_shape) {
+                commands.entity(laser_entity).despawn();
                 if ship.shield_level > 0 {
                     ship.shield_level -= 1;
-                    let diff = ship_position - laser_position;
-                    let speed =
-                        (laser_moving.velocity.project_onto(diff) - ship_moving.velocity).length();
-                    ship_moving.velocity = diff.normalize() * speed;
+                    ship_moving.velocity += laser_moving.velocity * 0.1;
                 } else {
                     ship.respawn_delay = SHIP_RESPAWN_DELAY;
                     ship.lives = ship.lives.max(1) - 1;
