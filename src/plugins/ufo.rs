@@ -79,8 +79,8 @@ fn ufo_spawn_system(
         let position = match (horizontal, direction) {
             (false, false) => Vec2::new(d.x, span.y),
             (true, false) => Vec2::new(span.x, d.y),
-            (false, true) => Vec2::new(d.x, 0.),
-            (true, true) => Vec2::new(0., d.y),
+            (false, true) => Vec2::new(d.x, -span.y),
+            (true, true) => Vec2::new(-span.x, d.y),
         };
 
         let ufo = Ufo {
