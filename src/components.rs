@@ -55,6 +55,7 @@ pub struct Beam {
     pub max_length: f32,
     pub sustained: f32,
     pub cooldown: f32,
+    pub active: bool,
 }
 
 #[derive(Clone, Copy)]

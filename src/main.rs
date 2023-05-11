@@ -265,10 +265,11 @@ fn load_level(
     }
 
     if ships_query.is_empty() {
+        let weapon_beam_level = 8;
         let ship = Ship {
             weapon_rapid_level: 4,
             weapon_spread_level: 4,
-            weapon_beam_level: 8,
+            weapon_beam_level,
             weapon_plasma_level: 8,
             shield_level: 2,
             lives: 3,
@@ -278,6 +279,24 @@ fn load_level(
             .spawn(ShipBundle::new(ship, sprite_sheets.as_ref()))
             .with_children(|ship| {
                 ship.spawn(ShipShieldBundle::new(&sprite_sheets.ship));
+                let projectile = ShipProjectile::Beam { power: 20.0 };
+                let beam_from = Vec2::ZERO;
+                let length = 0.0;
+                let max_length =
+                    BEAM_BASE_LENGTH + BEAM_LENGTH_PER_LEVEL * weapon_beam_level as f32;
+                let texture = asset_server.load("img/continuous_beam.png");
+                let mut transform = Transform::from_xyz(0.0, 0.0, -0.01);
+                transform.scale.y = length / 128.0;
+                ship.spawn(ShipBeamBundle::new(
+                    projectile, texture, transform, beam_from, length, max_length,
+                ))
+                .with_children(|beam| {
+                    beam.spawn(SpriteBundle {
+                        texture: asset_server.load("img/continuous_tip.png"),
+                        transform: Transform::from_xyz(0.0, 128.0, 0.0),
+                        ..Default::default()
+                    });
+                });
             });
     } else {
         for mut transform in ships_query.iter_mut() {
@@ -375,7 +394,7 @@ fn ship_respawn_system(
     time: Res<Time>,
 ) {
     for (mut ship, mut transform, mut moving, mut visibility) in ships_query.iter_mut() {
-        if ship.respawn_delay > 0.0 {
+        if ship.lives > 0 && ship.respawn_delay > 0.0 {
             ship.respawn_delay -= time.delta_seconds();
             if ship.respawn_delay > 0.0 {
                 *visibility = Visibility::Hidden;
@@ -426,13 +445,13 @@ fn ship_control_system(mut ship_query: Query<&mut Ship>, keyboard_input: Res<Inp
 fn ship_physics(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
-    mut ship_query: Query<(Entity, &mut Ship, &mut Moving, &mut Transform)>,
+    mut ship_query: Query<(&mut Ship, &mut Moving, &mut Transform)>,
     mut beam_query: Query<&mut Beam, Without<Ship>>,
     time: Res<Time>,
 ) {
     let time_delta = time.delta().as_secs_f32();
 
-    for (ship_entity, mut ship, mut moving, mut transform) in ship_query.iter_mut() {
+    for (mut ship, mut moving, mut transform) in ship_query.iter_mut() {
         ship.invulnerability = (ship.invulnerability - time_delta).max(0.);
         let angular_velocity = match ship.turn {
             ShipTurn::Neutral => 0.0,
@@ -536,75 +555,28 @@ fn ship_physics(
                         lerp(1.2, 0.8, (ship.weapon_plasma_level - 1) as f32 / 8.0);
                 }
                 ShipWeapon::Beam => {
-                    let projectile = ShipProjectile::Beam { power: 20.0 };
-                    if beam_query.is_empty() {
-                        let texture = asset_server.load("img/continuous_tip.png");
-                        let beam_from = transform.translation.truncate();
-                        let length = 0.0;
-                        let max_length = BEAM_BASE_LENGTH
-                            + BEAM_LENGTH_PER_LEVEL * ship.weapon_beam_level as f32;
-                        let transform = Transform::from_xyz(0.0, 128.0, 0.0);
-                        let tip = commands
-                            .spawn(SpriteBundle {
-                                texture,
-                                transform,
-                                ..Default::default()
-                            })
-                            .id();
-                        let texture = asset_server.load("img/continuous_beam.png");
-                        let mut transform = Transform::default();
-                        transform.translation.z = -0.01;
-                        transform.scale.y = length / 128.0;
-                        let beam = commands
-                            .spawn(SpriteBundle {
-                                texture,
-                                transform,
-                                sprite: Sprite {
-                                    anchor: bevy::sprite::Anchor::BottomCenter,
-                                    ..Default::default()
-                                },
-                                ..Default::default()
-                            })
-                            .insert(Beam {
-                                length,
-                                max_length,
-                                sustained: 0.0,
-                                cooldown: 0.0,
-                            })
-                            .insert(projectile)
-                            .insert(CollisionShape::new(
-                                Shape::Line {
-                                    base: Vec2::ZERO,
-                                    delta: Vec2::Y * 128.0,
-                                    width: 4.0,
-                                },
-                                Transform::from_translation(beam_from.extend(0.)),
-                            ))
-                            .id();
-                        commands.entity(beam).push_children(&[tip]);
-                        commands.entity(ship_entity).push_children(&[beam]);
-                    } else {
-                        for mut beam in beam_query.iter_mut() {
-                            beam.sustained += time_delta;
-                            if beam.sustained > BEAM_EXTEND_TIME {
-                                beam.max_length =
-                                    (beam.max_length - time_delta * BEAM_RETRACT_RATE).max(0.);
-                            }
-                            if beam.cooldown <= 0.0 {
-                                beam.length = beam.max_length.min(
-                                    beam.length + beam.max_length * time_delta / BEAM_EXTEND_TIME,
-                                );
-                            } else {
-                                beam.cooldown -= time_delta;
-                            }
+                    for mut beam in beam_query.iter_mut() {
+                        beam.active = true;
+                        beam.sustained += time_delta;
+                        if beam.sustained > BEAM_EXTEND_TIME {
+                            beam.max_length =
+                                (beam.max_length - time_delta * BEAM_SHRINK_RATE).max(0.);
+                        }
+                        if beam.cooldown <= 0.0 {
+                            beam.length = beam
+                                .max_length
+                                .min(beam.length + beam.max_length * time_delta / BEAM_EXTEND_TIME);
+                        } else {
+                            beam.cooldown -= time_delta;
                         }
                     }
                 }
             }
         } else if matches!(ship.weapon, ShipWeapon::Beam) {
             for mut beam in beam_query.iter_mut() {
+                beam.active = false;
                 if beam.length > 0.0 {
-                    beam.length = (beam.length - time_delta * 1024.0).max(0.0);
+                    beam.length = (beam.length - time_delta * BEAM_RETRACT_RATE).max(0.0);
                 } else {
                     beam.sustained = 0.0;
                     let max_length =
@@ -702,10 +674,14 @@ fn ship_projectile_asteroid_hit_system(
                     }
                     ShipProjectile::Beam { .. } => {
                         if let Some(ref mut beam) = maybe_beam {
-                            beam.length = projectile_shape.distance(asteroid_shape);
-                            if beam.cooldown <= 0.0 {
-                                asteroid.integrity -= BEAM_DAMAGE_PER_HIT;
-                                beam.cooldown = BEAM_HIT_INTERVAL;
+                            if beam.active {
+                                beam.length = projectile_shape
+                                    .distance(asteroid_shape)
+                                    .min(beam.max_length);
+                                if beam.cooldown <= 0.0 {
+                                    asteroid.integrity -= BEAM_DAMAGE_PER_HIT;
+                                    beam.cooldown = BEAM_HIT_INTERVAL;
+                                }
                             }
                         }
                     }

@@ -228,6 +228,51 @@ impl ShipProjectileBundle {
         }
     }
 }
+#[derive(Bundle)]
+pub struct ShipBeamBundle {
+    sprite_bundle: SpriteBundle,
+    beam: Beam,
+    ship_projectile: ShipProjectile,
+    collision_shape: CollisionShape,
+}
+impl ShipBeamBundle {
+    pub fn new(
+        ship_projectile: ShipProjectile,
+        texture: Handle<Image>,
+        transform: Transform,
+        base: Vec2,
+        length: f32,
+        max_length: f32,
+    ) -> Self {
+        ShipBeamBundle {
+            sprite_bundle: SpriteBundle {
+                texture,
+                transform,
+                sprite: Sprite {
+                    anchor: bevy::sprite::Anchor::BottomCenter,
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            beam: Beam {
+                length,
+                max_length,
+                sustained: 0.0,
+                cooldown: 0.0,
+                active: true,
+            },
+            ship_projectile,
+            collision_shape: CollisionShape::new(
+                Shape::Line {
+                    base: Vec2::ZERO,
+                    delta: Vec2::Y * 128.0,
+                    width: 4.0,
+                },
+                Transform::from_translation(base.extend(0.)),
+            ),
+        }
+    }
+}
 
 #[derive(Bundle)]
 pub struct ExplosionBundle {
