@@ -58,6 +58,9 @@ pub struct Beam {
     pub active: bool,
 }
 
+#[derive(Component)]
+pub struct BeamTip;
+
 #[derive(Clone, Copy)]
 pub enum ShipTurn {
     Neutral,

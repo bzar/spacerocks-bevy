@@ -295,7 +295,8 @@ fn load_level(
                         texture: asset_server.load("img/continuous_tip.png"),
                         transform: Transform::from_xyz(0.0, 128.0, 0.0),
                         ..Default::default()
-                    });
+                    })
+                    .insert(BeamTip);
                 });
             });
     } else {
@@ -591,9 +592,17 @@ fn ship_physics(
     }
 }
 
-fn beam_sprite_system(mut beam_query: Query<(&Beam, &mut Transform)>) {
-    for (beam, mut transform) in beam_query.iter_mut() {
+fn beam_sprite_system(
+    mut beam_query: Query<(&Beam, &mut Transform, &Children), Without<BeamTip>>,
+    mut tip_query: Query<&mut Transform, With<BeamTip>>,
+) {
+    for (beam, mut transform, children) in beam_query.iter_mut() {
         transform.scale.y = beam.length / 128.0;
+        for child in children.iter() {
+            if let Ok(mut tip_transform) = tip_query.get_mut(*child) {
+                tip_transform.scale.y = 1.0 / transform.scale.y;
+            }
+        }
     }
 }
 fn ship_sprite(

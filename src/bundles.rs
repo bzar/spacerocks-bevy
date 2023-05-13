@@ -266,7 +266,7 @@ impl ShipBeamBundle {
                 Shape::Line {
                     base: Vec2::ZERO,
                     delta: Vec2::Y * 128.0,
-                    width: 4.0,
+                    width: 8.0,
                 },
                 Transform::from_translation(base.extend(0.)),
             ),
