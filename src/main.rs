@@ -71,6 +71,7 @@ fn main() {
                 ship_asteroid_collision_system,
                 level_finished_system,
                 gameover_system,
+                cheat_system,
             )
                 .in_set(OnUpdate(AppState::InGame)),
         )
@@ -265,13 +266,9 @@ fn load_level(
     }
 
     if ships_query.is_empty() {
-        let weapon_beam_level = 8;
         let ship = Ship {
-            weapon_rapid_level: 4,
-            weapon_spread_level: 4,
-            weapon_beam_level,
-            weapon_plasma_level: 8,
-            shield_level: 2,
+            weapon_rapid_level: 1,
+            shield_level: 0,
             lives: 3,
             ..Ship::default()
         };
@@ -282,8 +279,7 @@ fn load_level(
                 let projectile = ShipProjectile::Beam { power: 20.0 };
                 let beam_from = Vec2::ZERO;
                 let length = 0.0;
-                let max_length =
-                    BEAM_BASE_LENGTH + BEAM_LENGTH_PER_LEVEL * weapon_beam_level as f32;
+                let max_length = 0.0;
                 let texture = asset_server.load("img/continuous_beam.png");
                 let mut transform = Transform::from_xyz(0.0, 0.0, -0.01);
                 transform.scale.y = length / 128.0;
@@ -910,11 +906,13 @@ fn ship_asteroid_collision_system(
             if ship_shape.intersects(asteroid_shape) {
                 if ship.shield_level > 0 {
                     ship.shield_level -= 1;
-                    let diff = ship_position - asteroid_position;
-                    let speed = (asteroid_moving.velocity.project_onto(diff)
-                        - ship_moving.velocity)
-                        .length();
-                    ship_moving.velocity = diff.normalize() * speed;
+                    let diff = (ship_position - asteroid_position).normalize();
+                    let speed = asteroid_moving
+                        .velocity
+                        .project_onto_normalized(diff)
+                        .length()
+                        + ship_moving.velocity.project_onto_normalized(-diff).length();
+                    ship_moving.velocity = diff * speed;
                 } else {
                     ship.respawn_delay = SHIP_RESPAWN_DELAY;
                     ship.lives = ship.lives.max(1) - 1;
@@ -955,5 +953,27 @@ fn animation_system(
 fn collision_shape_system(mut query: Query<(&mut CollisionShape, &GlobalTransform)>) {
     for (mut shape, transform) in query.iter_mut() {
         shape.transform = transform.compute_transform();
+    }
+}
+
+fn cheat_system(keyboard_input: Res<Input<KeyCode>>, mut ship_query: Query<&mut Ship>) {
+    let mut ship = ship_query.single_mut();
+    if keyboard_input.just_pressed(KeyCode::F1) {
+        ship.weapon_rapid_level = ship.weapon_rapid_level.min(7) + 1;
+    }
+    if keyboard_input.just_pressed(KeyCode::F2) {
+        ship.weapon_spread_level = ship.weapon_spread_level.min(7) + 1;
+    }
+    if keyboard_input.just_pressed(KeyCode::F3) {
+        ship.weapon_beam_level = ship.weapon_beam_level.min(7) + 1;
+    }
+    if keyboard_input.just_pressed(KeyCode::F4) {
+        ship.weapon_plasma_level = ship.weapon_plasma_level.min(7) + 1;
+    }
+    if keyboard_input.just_pressed(KeyCode::F5) {
+        ship.shield_level += 1;
+    }
+    if keyboard_input.just_pressed(KeyCode::F6) {
+        ship.lives += 1;
     }
 }

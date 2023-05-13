@@ -50,7 +50,6 @@
 
 ### Known bugs
 
-- Beam weapon collision does not match the graphics
 - Shield doesn't help sometimes
   - Probably doesn't add asteroid to bounce correctly
 - Asteroids sometimes don't spawn smaller asteroids (esp. level 2)
