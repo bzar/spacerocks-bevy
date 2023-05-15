@@ -50,5 +50,5 @@
 
 ### Known bugs
 
-- Shield doesn't help sometimes
-  - Probably doesn't add asteroid to bounce correctly
+- Some duplicate despawn messages
+  - Ship projectiles?

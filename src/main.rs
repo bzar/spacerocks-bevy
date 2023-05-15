@@ -911,6 +911,11 @@ fn ship_asteroid_collision_system(
         for (asteroid_transform, asteroid_moving, asteroid_shape) in asteroids_query.iter() {
             let asteroid_position = asteroid_transform.translation.truncate();
             if ship_shape.intersects(asteroid_shape) {
+                let diff = ship_position - asteroid_position;
+                let epsilon = (ship_moving.velocity - asteroid_moving.velocity) * 0.01;
+                if diff.length_squared() < (diff + epsilon).length_squared() {
+                    continue;
+                }
                 if ship.shield_level > 0 {
                     ship.shield_level -= 1;
                     let diff = (ship_position - asteroid_position).normalize();
