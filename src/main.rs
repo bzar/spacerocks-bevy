@@ -1,3 +1,5 @@
+use std::f32::consts::TAU;
+
 use bevy::{asset::LoadState, prelude::*};
 use rand::{random, thread_rng, Rng};
 
@@ -720,11 +722,15 @@ fn asteroid_hit_system(
         pairs.fetch_next()
     {
         if a_shape.intersects(b_shape) {
-            let direction = (a_transform.translation - b_transform.translation)
-                .truncate()
-                .normalize();
-            a_moving.velocity = direction * a_moving.velocity.length();
-            b_moving.velocity = -direction * b_moving.velocity.length();
+            let a_position = a_transform.translation.truncate();
+            let b_position = b_transform.translation.truncate();
+            let diff = a_position - b_position;
+            let epsilon = (a_moving.velocity - b_moving.velocity) * 0.01;
+            if diff.length_squared() >= (diff + epsilon).length_squared() {
+                let direction = diff.normalize();
+                a_moving.velocity = direction * a_moving.velocity.length();
+                b_moving.velocity = -direction * b_moving.velocity.length();
+            }
         }
     }
 }
@@ -757,14 +763,15 @@ fn asteroid_split_system(
                 let direction = (transform.rotation * transform.translation)
                     .truncate()
                     .normalize();
-                let data = [direction, -direction]
-                    .into_iter()
-                    .cycle()
-                    .take(level.asteroid_frag_count() as usize);
+                let n = level.asteroid_frag_count();
+                let data = (0..n)
+                    .map(|i| i as f32 * TAU / n as f32)
+                    .map(|angle| direction.rotate(Vec2::from_angle(angle)));
 
-                let position = transform.translation.truncate();
+                let parent_position = transform.translation.truncate();
                 let spinning_speed = random::<f32>() - 0.5;
                 for dir in data {
+                    let position = parent_position + dir * 5.0;
                     let velocity = dir * 30.0;
                     commands.spawn(AsteroidBundle::new(
                         sprite_sheets.as_ref(),
