@@ -151,7 +151,7 @@ impl Level {
         min..=max
     }
     pub fn asteroid_frag_count(&self) -> u32 {
-        2 + self.0 % 20
+        2 + self.0 / 20
     }
     pub fn asteroids(&self) -> impl Iterator<Item = AsteroidSize> {
         let budget = (self.0 % 20 + 2) * AsteroidSize::Large.cost();
