@@ -406,6 +406,8 @@ fn ship_respawn_system(
                 transform.translation = Vec3::ZERO;
                 moving.velocity = Vec2::ZERO;
             }
+        } else if ship.lives <= 0 {
+            *visibility = Visibility::Hidden;
         }
     }
 }
@@ -926,8 +928,7 @@ fn ship_asteroid_collision_system(
                         + ship_moving.velocity.project_onto_normalized(-diff).length();
                     ship_moving.velocity = diff * speed;
                 } else {
-                    ship.respawn_delay = SHIP_RESPAWN_DELAY;
-                    ship.lives = ship.lives.max(1) - 1;
+                    ship.die();
                     commands.spawn(ExplosionBundle::new(
                         &sprite_sheets.explosion,
                         ship_position,

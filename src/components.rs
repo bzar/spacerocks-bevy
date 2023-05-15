@@ -1,5 +1,7 @@
 use bevy::prelude::*;
 
+use crate::constants::SHIP_RESPAWN_DELAY;
+
 #[derive(Copy, Clone, Debug)]
 pub enum AsteroidSize {
     Tiny = 0,
@@ -153,6 +155,18 @@ pub struct Ship {
     pub respawn_delay: f32,
 }
 
+impl Ship {
+    pub fn die(&mut self) {
+        self.lives = self.lives.saturating_sub(1);
+        self.respawn_delay = SHIP_RESPAWN_DELAY;
+        self.invulnerability = SHIP_RESPAWN_DELAY;
+        self.weapon_rapid_level = self.weapon_rapid_level.saturating_sub(1).max(1);
+        self.weapon_spread_level = self.weapon_spread_level.saturating_sub(1);
+        self.weapon_beam_level = self.weapon_beam_level.saturating_sub(1);
+        self.weapon_plasma_level = self.weapon_plasma_level.saturating_sub(1);
+        self.shield_level = 0;
+    }
+}
 #[derive(Component)]
 pub struct ShipShield;
 

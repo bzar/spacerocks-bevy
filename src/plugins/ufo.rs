@@ -181,8 +181,7 @@ fn ship_ufo_collision_system(
                         (ufo_moving.velocity.project_onto(diff) - ship_moving.velocity).length();
                     ship_moving.velocity = diff.normalize() * speed;
                 } else {
-                    ship.respawn_delay = SHIP_RESPAWN_DELAY;
-                    ship.lives = ship.lives.max(1) - 1;
+                    ship.die();
                     commands.spawn(ExplosionBundle::new(
                         &sprite_sheets.explosion,
                         ship_position,
@@ -216,8 +215,7 @@ fn ship_ufo_laser_collision_system(
                     ship.shield_level -= 1;
                     ship_moving.velocity += laser_moving.velocity * 0.1;
                 } else {
-                    ship.respawn_delay = SHIP_RESPAWN_DELAY;
-                    ship.lives = ship.lives.max(1) - 1;
+                    ship.die();
                     commands.spawn(ExplosionBundle::new(
                         &sprite_sheets.explosion,
                         ship_position,
