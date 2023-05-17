@@ -35,7 +35,7 @@ impl AsteroidSize {
     }
 }
 
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum ShipWeapon {
     Rapid,
     Spread,
@@ -165,6 +165,38 @@ impl Ship {
         self.weapon_beam_level = self.weapon_beam_level.saturating_sub(1);
         self.weapon_plasma_level = self.weapon_plasma_level.saturating_sub(1);
         self.shield_level = 0;
+    }
+    pub fn next_weapon(&mut self) {
+        use ShipWeapon::*;
+        let levels = [
+            (Rapid, self.weapon_rapid_level),
+            (Spread, self.weapon_spread_level),
+            (Beam, self.weapon_beam_level),
+            (Plasma, self.weapon_plasma_level),
+        ];
+        self.weapon = levels
+            .iter()
+            .cycle()
+            .skip_while(|(w, _)| *w != self.weapon)
+            .skip(1)
+            .find_map(|(w, l)| (*l > 0).then_some(*w))
+            .unwrap_or(Rapid);
+    }
+    pub fn prev_weapon(&mut self) {
+        use ShipWeapon::*;
+        let levels = [
+            (Plasma, self.weapon_plasma_level),
+            (Beam, self.weapon_beam_level),
+            (Spread, self.weapon_spread_level),
+            (Rapid, self.weapon_rapid_level),
+        ];
+        self.weapon = levels
+            .iter()
+            .cycle()
+            .skip_while(|(w, _)| *w != self.weapon)
+            .skip(1)
+            .find_map(|(w, l)| (*l > 0).then_some(*w))
+            .unwrap_or(Rapid);
     }
 }
 #[derive(Component)]

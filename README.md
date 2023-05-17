@@ -37,6 +37,7 @@
 - [x] Level start text animation
 - [x] Particle effects
   - [ ] Additive alpha blending
+  - [ ] Beam glow  
 - [x] Score/powerup notifications
 - [ ] Music
 - [ ] Sounds
@@ -46,7 +47,7 @@
 - [x] Game over
 - [ ] High Score
 - [x] View letterboxing
-- [ ] Gamepad controls
+- [x] Gamepad controls
 
 ### Known bugs
 

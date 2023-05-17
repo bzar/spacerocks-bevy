@@ -6,6 +6,7 @@ use rand::{random, thread_rng, Rng};
 mod bundles;
 mod components;
 mod constants;
+mod input;
 mod plugins;
 mod resources;
 mod utils;
@@ -25,6 +26,7 @@ enum AppState {
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
+        .insert_resource(input::InputState::default())
         .insert_resource(SpriteSheets::default())
         .insert_resource(Level(0))
         .insert_resource(Score(0))
@@ -74,6 +76,7 @@ fn main() {
                 level_finished_system,
                 gameover_system,
                 cheat_system,
+                input::update_input_state,
             )
                 .in_set(OnUpdate(AppState::InGame)),
         )
@@ -411,36 +414,34 @@ fn ship_respawn_system(
         }
     }
 }
-fn ship_control_system(mut ship_query: Query<&mut Ship>, keyboard_input: Res<Input<KeyCode>>) {
-    let throttle = keyboard_input.pressed(KeyCode::W);
-    let turn_left = keyboard_input.pressed(KeyCode::A);
-    let turn_right = keyboard_input.pressed(KeyCode::D);
-    let fire = keyboard_input.pressed(KeyCode::E);
-    let weapon_rapid = keyboard_input.pressed(KeyCode::Key1);
-    let weapon_spread = keyboard_input.pressed(KeyCode::Key2);
-    let weapon_beam = keyboard_input.pressed(KeyCode::Key3);
-    let weapon_plasma = keyboard_input.pressed(KeyCode::Key4);
-
+fn ship_control_system(mut ship_query: Query<&mut Ship>, input: Res<input::InputState>) {
     for mut ship in ship_query.iter_mut() {
         if ship.respawn_delay > 0.0 {
             ship.fire = false;
             continue;
         }
-        ship.throttle = throttle;
-        ship.turn = match (turn_left, turn_right) {
+        ship.throttle = input.throttle;
+        ship.turn = match (input.left, input.right) {
             (true, false) => ShipTurn::Left,
             (false, true) => ShipTurn::Right,
             _ => ShipTurn::Neutral,
         };
-        ship.fire = fire;
-        if weapon_rapid {
+        ship.fire = input.fire;
+        if input.weapon_1 {
             ship.weapon = ShipWeapon::Rapid;
-        } else if weapon_spread {
+        } else if input.weapon_2 {
             ship.weapon = ShipWeapon::Spread;
-        } else if weapon_beam {
+        } else if input.weapon_3 {
             ship.weapon = ShipWeapon::Beam;
-        } else if weapon_plasma {
+        } else if input.weapon_4 {
             ship.weapon = ShipWeapon::Plasma;
+        }
+
+        if input.weapon_next {
+            ship.next_weapon();
+        }
+        if input.weapon_prev {
+            ship.prev_weapon();
         }
     }
 }
