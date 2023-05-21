@@ -4,6 +4,8 @@ use crate::input::InputState;
 use crate::resources::Score;
 use crate::AppState;
 use bevy::prelude::*;
+use std::fs::File;
+use std::io::{Read, Write};
 
 #[derive(Component)]
 struct HighScoreEntity;
@@ -27,22 +29,9 @@ pub struct HighScore {
 pub struct HighScorePlugin;
 impl Plugin for HighScorePlugin {
     fn build(&self, app: &mut App) {
-        let high_score = HighScore {
-            entries: vec![
-                HighScoreEntry {
-                    name: "FOO".to_string(),
-                    score: 1000,
-                },
-                HighScoreEntry {
-                    name: "BAR".to_string(),
-                    score: 500,
-                },
-                HighScoreEntry {
-                    name: "BAZ".to_string(),
-                    score: 100,
-                },
-            ],
-        };
+        let high_score = HighScore::load().unwrap_or(HighScore {
+            entries: Vec::new(),
+        });
         app.insert_resource(high_score)
             .add_system(init_highscore.in_schedule(OnEnter(AppState::HighScore)))
             .add_system(
@@ -163,8 +152,6 @@ fn highscore_entry_input(
         } else {
             *selected += 1;
             if *selected == NUM_HIGH_SCORE_ENTRY_LETTERS {
-                next_state.set(AppState::HighScore);
-
                 // FIXME: This is horrible, but it works
                 let mut indexed_letters: Vec<_> = letters
                     .iter()
@@ -182,6 +169,8 @@ fn highscore_entry_input(
                 high_score
                     .entries
                     .sort_by_key(|entry| -(entry.score as i64));
+                high_score.save().expect("Could not save high score!");
+                next_state.set(AppState::HighScore);
             }
         }
     }
@@ -257,5 +246,39 @@ impl HighScoreText {
                 elapsed: 0.0,
             },
         }
+    }
+}
+
+impl HighScore {
+    fn crypt(content: &[u8]) -> Vec<u8> {
+        let key = "Space Rocks!".as_bytes().into_iter().cycle();
+        content.iter().zip(key).map(|(a, b)| a ^ b).collect()
+    }
+    fn save(&self) -> std::io::Result<()> {
+        let content: String = self
+            .entries
+            .iter()
+            .map(|e| format!("{}:{}\n", e.name, e.score))
+            .collect();
+        let encoded = HighScore::crypt(&content.as_bytes());
+        let mut file = File::create("highscore.enc")?;
+        file.write_all(&encoded)?;
+        Ok(())
+    }
+    fn load() -> std::io::Result<Self> {
+        let mut file = File::open("highscore.enc")?;
+        let mut content = Vec::new();
+        file.read_to_end(&mut content)?;
+        let decoded = HighScore::crypt(&content);
+        let entries: Vec<_> = std::str::from_utf8(&decoded)
+            .expect("Invalid high score file!")
+            .split(|ch| ch == '\n')
+            .filter_map(|e| e.split_once(':'))
+            .map(|(name, score_str)| HighScoreEntry {
+                name: name.to_string(),
+                score: score_str.parse().expect("Invalid high score file!"),
+            })
+            .collect();
+        Ok(HighScore { entries })
     }
 }
