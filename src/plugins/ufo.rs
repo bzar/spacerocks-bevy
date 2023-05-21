@@ -163,23 +163,22 @@ fn ufo_shoot_system(
 fn ship_ufo_collision_system(
     mut commands: Commands,
     sprite_sheets: Res<SpriteSheets>,
-    mut ships_query: Query<(&mut Ship, &Transform, &mut Moving, &CollisionShape)>,
-    ufo_query: Query<(&Transform, &Moving, &CollisionShape), (With<Ufo>, Without<Ship>)>,
+    mut ships_query: Query<(&mut Ship, &Transform, &CollisionShape)>,
+    mut ufo_query: Query<(&mut Ufo, &CollisionShape), (With<Ufo>, Without<Ship>)>,
 ) {
-    for (mut ship, ship_transform, mut ship_moving, ship_shape) in ships_query.iter_mut() {
+    for (mut ship, ship_transform, ship_shape) in ships_query.iter_mut() {
         if ship.invulnerability > 0.0 {
             continue;
         }
         let ship_position = ship_transform.translation.truncate();
-        for (ufo_transform, ufo_moving, ufo_shape) in ufo_query.iter() {
-            let ufo_position = ufo_transform.translation.truncate();
+        for (mut ufo, ufo_shape) in ufo_query.iter_mut() {
+            if ufo.life <= 0 {
+                continue;
+            }
             if ship_shape.intersects(ufo_shape) {
                 if ship.shield_level > 0 {
                     ship.shield_level -= 1;
-                    let diff = ship_position - ufo_position;
-                    let speed =
-                        (ufo_moving.velocity.project_onto(diff) - ship_moving.velocity).length();
-                    ship_moving.velocity = diff.normalize() * speed;
+                    ufo.life = 0;
                 } else {
                     ship.die();
                     commands.spawn(ExplosionBundle::new(
