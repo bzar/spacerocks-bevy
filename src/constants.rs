@@ -17,3 +17,5 @@ pub const BEAM_HIT_INTERVAL: f32 = 1.0 / 3.0;
 pub const BEAM_DAMAGE_PER_HIT: i32 = 1;
 pub const MIN_UFO_SCORE_INTERVAL: f32 = 400.0;
 pub const MAX_UFO_SCORE_INTERVAL: f32 = 800.0;
+pub const MAX_HIGH_SCORE_ENTRIES: usize = 10;
+pub const NUM_HIGH_SCORE_ENTRY_LETTERS: i32 = 3;

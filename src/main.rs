@@ -21,6 +21,8 @@ enum AppState {
     NewGame,
     LoadLevel,
     InGame,
+    HighScore,
+    HighScoreEntry,
 }
 
 fn main() {
@@ -35,6 +37,16 @@ fn main() {
         .add_state::<AppState>()
         .add_plugin(plugins::CameraPlugin)
         .add_plugin(plugins::TitleScreenPlugin)
+        .add_plugin(plugins::HighScorePlugin)
+        .add_systems((
+            input::update_input_state,
+            spinning_system,
+            wrapping_system,
+            expiring_system,
+            scaling_system,
+            fading_system,
+            animation_system,
+        ))
         .add_system(loading.in_set(OnUpdate(AppState::Loading)))
         .add_system(new_game.in_schedule(OnEnter(AppState::NewGame)))
         .add_system(load_level.in_schedule(OnEnter(AppState::LoadLevel)))
@@ -49,18 +61,12 @@ fn main() {
         )
         .add_systems(
             (
+                moving_system,
                 ship_control_system,
                 ship_physics,
                 ship_sprite,
                 ship_respawn_system,
                 shield_sprite,
-                moving_system,
-                spinning_system,
-                wrapping_system,
-                expiring_system,
-                scaling_system,
-                fading_system,
-                animation_system,
                 collision_shape_system,
                 beam_sprite_system,
             )
@@ -76,7 +82,6 @@ fn main() {
                 level_finished_system,
                 gameover_system,
                 cheat_system,
-                input::update_input_state,
             )
                 .in_set(OnUpdate(AppState::InGame)),
         )
@@ -812,7 +817,7 @@ fn gameover_system(
         if let Some(timer) = maybe_timer.as_mut() {
             if timer.tick(time.delta()).just_finished() {
                 *maybe_timer = None;
-                state.set(AppState::Title);
+                state.set(AppState::HighScoreEntry);
             }
         } else {
             *maybe_timer = Some(Timer::from_seconds(3.0, TimerMode::Once))

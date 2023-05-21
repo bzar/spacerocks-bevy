@@ -9,3 +9,6 @@ pub use hud::HudPlugin;
 
 mod ufo;
 pub use ufo::UfoPlugin;
+
+mod highscore;
+pub use highscore::HighScorePlugin;

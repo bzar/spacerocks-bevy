@@ -4,8 +4,11 @@ use bevy::prelude::*;
 pub struct InputState {
     pub left: bool,
     pub right: bool,
+    pub up: bool,
+    pub down: bool,
     pub throttle: bool,
     pub fire: bool,
+    pub ok: bool,
     pub weapon_1: bool,
     pub weapon_2: bool,
     pub weapon_3: bool,
@@ -23,8 +26,11 @@ pub fn update_input_state(
 ) {
     state.left = keyboard.pressed(KeyCode::A);
     state.right = keyboard.pressed(KeyCode::D);
+    state.up = keyboard.just_pressed(KeyCode::W);
+    state.down = keyboard.just_pressed(KeyCode::S);
     state.throttle = keyboard.pressed(KeyCode::W);
     state.fire = keyboard.pressed(KeyCode::Space);
+    state.ok = keyboard.just_pressed(KeyCode::Space);
     state.weapon_1 = keyboard.just_pressed(KeyCode::Key1);
     state.weapon_2 = keyboard.just_pressed(KeyCode::Key2);
     state.weapon_3 = keyboard.just_pressed(KeyCode::Key3);
@@ -40,10 +46,19 @@ pub fn update_input_state(
             || left_stick_x < 0.1;
         state.right |= buttons.pressed(GamepadButton::new(gamepad, GamepadButtonType::DPadRight))
             || left_stick_x > 0.1;
+        let left_stick_y = axes
+            .get(GamepadAxis::new(gamepad, GamepadAxisType::LeftStickY))
+            .unwrap_or(0.0);
+        state.up |= buttons.pressed(GamepadButton::new(gamepad, GamepadButtonType::DPadUp))
+            || left_stick_y > 0.1;
+        state.down |= buttons.pressed(GamepadButton::new(gamepad, GamepadButtonType::DPadDown))
+            || left_stick_y < 0.1;
         state.throttle |= buttons.pressed(GamepadButton::new(gamepad, GamepadButtonType::South))
             || buttons.pressed(GamepadButton::new(gamepad, GamepadButtonType::LeftTrigger));
         state.fire |= buttons.pressed(GamepadButton::new(gamepad, GamepadButtonType::West))
             || buttons.pressed(GamepadButton::new(gamepad, GamepadButtonType::RightTrigger));
+        state.ok |= buttons.just_pressed(GamepadButton::new(gamepad, GamepadButtonType::West))
+            || buttons.just_pressed(GamepadButton::new(gamepad, GamepadButtonType::RightTrigger));
         state.weapon_next |= buttons.pressed(GamepadButton::new(
             gamepad,
             GamepadButtonType::RightTrigger2,
