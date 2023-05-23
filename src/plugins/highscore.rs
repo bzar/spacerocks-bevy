@@ -169,7 +169,11 @@ fn highscore_entry_input(
                 high_score
                     .entries
                     .sort_by_key(|entry| -(entry.score as i64));
+                high_score
+                    .entries
+                    .truncate(NUM_HIGH_SCORE_ENTRY_LETTERS as usize);
                 high_score.save().expect("Could not save high score!");
+                *selected = 0;
                 next_state.set(AppState::HighScore);
             }
         }
