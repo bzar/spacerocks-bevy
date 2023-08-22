@@ -7,6 +7,7 @@ impl Plugin for UfoPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(NextUfoScore::new())
             .add_systems(
+                Update,
                 (
                     ufo_spawn_system,
                     ufo_movement_system,
@@ -17,9 +18,9 @@ impl Plugin for UfoPlugin {
                     ship_ufo_laser_collision_system,
                     ufo_destroy_system,
                 )
-                    .in_set(OnUpdate(AppState::InGame)),
+                    .run_if(in_state(AppState::InGame)),
             )
-            .add_system(reset_next_ufo_score.in_schedule(OnEnter(AppState::NewGame)));
+            .add_systems(OnEnter(AppState::NewGame), reset_next_ufo_score);
     }
 }
 #[derive(Component)]

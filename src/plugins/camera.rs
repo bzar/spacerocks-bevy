@@ -6,6 +6,7 @@ fn add_camera(mut commands: Commands, window_query: Query<&Window>) {
     let window = window_query.single();
     commands.spawn(Camera2dBundle {
         projection: OrthographicProjection {
+            near: -1.0,
             scaling_mode: bevy::render::camera::ScalingMode::AutoMin {
                 min_width: GAME_WIDTH as f32,
                 min_height: GAME_HEIGHT as f32,
@@ -47,7 +48,7 @@ fn viewport_system(mut camera_query: Query<&mut Camera>, window_query: Query<&Wi
 pub struct CameraPlugin;
 impl Plugin for CameraPlugin {
     fn build(&self, app: &mut App) {
-        app.add_startup_system(add_camera)
-            .add_system(viewport_system);
+        app.add_systems(Startup, add_camera)
+            .add_systems(Update, viewport_system);
     }
 }

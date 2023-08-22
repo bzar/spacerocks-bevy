@@ -128,11 +128,15 @@ fn title_start_system(
 pub struct TitleScreenPlugin;
 impl Plugin for TitleScreenPlugin {
     fn build(&self, app: &mut App) {
-        app.add_system(init_title.in_schedule(OnEnter(AppState::Title)))
-            .add_system(crate::despawn_tagged::<TitleEntity>.in_schedule(OnExit(AppState::Title)))
+        app.add_systems(OnEnter(AppState::Title), init_title)
             .add_systems(
+                OnExit(AppState::Title),
+                crate::despawn_tagged::<TitleEntity>,
+            )
+            .add_systems(
+                Update,
                 (title_input, title_text_system, title_start_system)
-                    .in_set(OnUpdate(AppState::Title)),
+                    .run_if(in_state(AppState::Title)),
             );
     }
 }

@@ -33,33 +33,40 @@ fn main() {
         .insert_resource(Level(0))
         .insert_resource(Score(0))
         .insert_resource(LevelStartDelayTimer::default())
-        .add_system(init.on_startup())
+        .add_systems(Startup, init)
         .add_state::<AppState>()
-        .add_plugin(plugins::CameraPlugin)
-        .add_plugin(plugins::TitleScreenPlugin)
-        .add_plugin(plugins::HighScorePlugin)
-        .add_systems((
-            input::update_input_state,
-            spinning_system,
-            wrapping_system,
-            expiring_system,
-            scaling_system,
-            fading_system,
-            animation_system,
+        .add_plugins((
+            plugins::CameraPlugin,
+            plugins::TitleScreenPlugin,
+            plugins::HighScorePlugin,
         ))
-        .add_system(loading.in_set(OnUpdate(AppState::Loading)))
-        .add_system(new_game.in_schedule(OnEnter(AppState::NewGame)))
-        .add_system(load_level.in_schedule(OnEnter(AppState::LoadLevel)))
         .add_systems(
+            Update,
+            (
+                input::update_input_state,
+                spinning_system,
+                wrapping_system,
+                expiring_system,
+                scaling_system,
+                fading_system,
+                animation_system,
+            ),
+        )
+        .add_systems(Update, loading.run_if(in_state(AppState::Loading)))
+        .add_systems(OnEnter(AppState::NewGame), new_game)
+        .add_systems(OnEnter(AppState::LoadLevel), load_level)
+        .add_systems(
+            Update,
             (
                 level_start_delay_system,
                 scaling_system,
                 expiring_system,
                 fading_system,
             )
-                .in_set(OnUpdate(AppState::LoadLevel)),
+                .run_if(in_state(AppState::LoadLevel)),
         )
         .add_systems(
+            Update,
             (
                 moving_system,
                 ship_control_system,
@@ -70,9 +77,10 @@ fn main() {
                 collision_shape_system,
                 beam_sprite_system,
             )
-                .in_set(OnUpdate(AppState::InGame)),
+                .run_if(in_state(AppState::InGame)),
         )
         .add_systems(
+            Update,
             (
                 asteroid_hit_system,
                 asteroid_split_system,
@@ -83,11 +91,10 @@ fn main() {
                 gameover_system,
                 cheat_system,
             )
-                .in_set(OnUpdate(AppState::InGame)),
+                .run_if(in_state(AppState::InGame)),
         )
-        .add_system(despawn_tagged::<LevelEntity>.in_schedule(OnExit(AppState::InGame)))
-        .add_plugin(plugins::HudPlugin)
-        .add_plugin(plugins::UfoPlugin)
+        .add_systems(OnExit(AppState::InGame), despawn_tagged::<LevelEntity>)
+        .add_plugins((plugins::HudPlugin, plugins::UfoPlugin))
         .run();
 }
 

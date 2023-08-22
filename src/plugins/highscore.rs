@@ -33,19 +33,24 @@ impl Plugin for HighScorePlugin {
             entries: Vec::new(),
         });
         app.insert_resource(high_score)
-            .add_system(init_highscore.in_schedule(OnEnter(AppState::HighScore)))
-            .add_system(
-                crate::despawn_tagged::<HighScoreEntity>.in_schedule(OnExit(AppState::HighScore)),
-            )
-            .add_systems((highscore_input,).in_set(OnUpdate(AppState::HighScore)))
-            .add_system(init_highscore_entry.in_schedule(OnEnter(AppState::HighScoreEntry)))
-            .add_system(
-                crate::despawn_tagged::<HighScoreEntity>
-                    .in_schedule(OnExit(AppState::HighScoreEntry)),
+            .add_systems(OnEnter(AppState::HighScore), init_highscore)
+            .add_systems(
+                OnExit(AppState::HighScore),
+                crate::despawn_tagged::<HighScoreEntity>,
             )
             .add_systems(
+                Update,
+                highscore_input.run_if(in_state(AppState::HighScore)),
+            )
+            .add_systems(OnEnter(AppState::HighScoreEntry), init_highscore_entry)
+            .add_systems(
+                OnExit(AppState::HighScoreEntry),
+                crate::despawn_tagged::<HighScoreEntity>,
+            )
+            .add_systems(
+                Update,
                 (highscore_entry_input, highscore_entry_letter_blink)
-                    .in_set(OnUpdate(AppState::HighScoreEntry)),
+                    .run_if(in_state(AppState::HighScoreEntry)),
             );
     }
 }
