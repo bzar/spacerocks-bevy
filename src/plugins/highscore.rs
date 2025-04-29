@@ -1,8 +1,8 @@
+use crate::AppState;
 use crate::components::Fading;
 use crate::constants::*;
 use crate::input::InputState;
 use crate::resources::Score;
-use crate::AppState;
 use bevy::prelude::*;
 use std::fs::File;
 use std::io::{Read, Write};
@@ -60,13 +60,10 @@ fn init_highscore(
     asset_server: Res<AssetServer>,
     high_score: Res<HighScore>,
 ) {
-    let texture = asset_server.load("img/highscores.png");
-    commands
-        .spawn(SpriteBundle {
-            texture,
-            ..default()
-        })
-        .insert(HighScoreEntity);
+    commands.spawn((
+        Sprite::from_image(asset_server.load("img/highscores.png")),
+        HighScoreEntity,
+    ));
     let entries = high_score.entries.len() as i32;
     let rows_per_column = 5;
     let columns = entries / (rows_per_column + 1) + 1;
@@ -82,7 +79,7 @@ fn init_highscore(
             -(row + 0.5) * 40.0,
         );
         commands
-            .spawn(HighScoreText::new(
+            .spawn(high_score_text(
                 position,
                 i as u32 + 1,
                 &entry.name,
@@ -105,13 +102,10 @@ fn init_highscore_entry(
     high_score: Res<HighScore>,
     score: Res<Score>,
 ) {
-    let texture = asset_server.load("img/gameover.png");
-    commands
-        .spawn(SpriteBundle {
-            texture,
-            ..default()
-        })
-        .insert(HighScoreEntity);
+    commands.spawn((
+        Sprite::from_image(asset_server.load("img/gameover.png")),
+        HighScoreEntity,
+    ));
 
     let is_high_score = high_score.entries.len() < MAX_HIGH_SCORE_ENTRIES
         || high_score.entries.iter().any(|hs| hs.score < score.value());
@@ -121,24 +115,17 @@ fn init_highscore_entry(
         info!("New high score!");
         for i in 0..NUM_HIGH_SCORE_ENTRY_LETTERS {
             let x = (i as i32 * 40 - (NUM_HIGH_SCORE_ENTRY_LETTERS + 1) * 20) as f32;
-            commands
-                .spawn(Text2dBundle {
-                    text: Text::from_section(
-                        "A".to_string(),
-                        TextStyle {
-                            font: font.clone(),
-                            font_size: 32.0,
-                            color: Color::WHITE,
-                        },
-                    ),
-                    transform: Transform::from_xyz(x, -70.0, 0.01),
-                    ..default()
-                })
-                .insert(HighScoreEntryLetter {
+            commands.spawn((
+                Text2d::new("A".to_owned()),
+                TextFont::from_font(font.clone()).with_font_size(32.0),
+                TextColor::WHITE,
+                Transform::from_xyz(x, -70.0, 0.01),
+                HighScoreEntryLetter {
                     index: i,
                     blinking: i == 0,
-                })
-                .insert(HighScoreEntity);
+                },
+                HighScoreEntity,
+            ));
         }
     }
 }
@@ -160,7 +147,7 @@ fn highscore_entry_input(
                 // FIXME: This is horrible, but it works
                 let mut indexed_letters: Vec<_> = letters
                     .iter()
-                    .map(|(letter, text)| (letter.index, &text.sections[0].value))
+                    .map(|(letter, text)| (letter.index, &text.0))
                     .collect();
                 indexed_letters.sort_unstable_by_key(|(index, _)| *index);
                 let name: String = indexed_letters
@@ -189,7 +176,7 @@ fn highscore_entry_input(
         letter.blinking = selected;
         if selected {
             if input.up {
-                let ch = text.sections[0].value.chars().next().unwrap();
+                let ch = text.0.chars().next().unwrap();
                 let new_ch = CHARS
                     .chars()
                     .cycle()
@@ -197,10 +184,10 @@ fn highscore_entry_input(
                     .skip(1)
                     .next()
                     .unwrap();
-                text.sections[0].value = new_ch.to_string();
+                text.0 = new_ch.to_string();
             }
             if input.down {
-                let ch = text.sections[0].value.chars().next().unwrap();
+                let ch = text.0.chars().next().unwrap();
                 let new_ch = CHARS
                     .chars()
                     .rev()
@@ -209,7 +196,7 @@ fn highscore_entry_input(
                     .skip(1)
                     .next()
                     .unwrap();
-                text.sections[0].value = new_ch.to_string();
+                text.0 = new_ch.to_string();
             }
         }
     }
@@ -220,7 +207,7 @@ fn highscore_entry_letter_blink(
     time: Res<Time>,
 ) {
     for (letter, mut visibility) in letters.iter_mut() {
-        *visibility = if letter.blinking && time.elapsed_seconds_wrapped().rem_euclid(0.4) < 0.2 {
+        *visibility = if letter.blinking && time.elapsed_secs_wrapped().rem_euclid(0.4) < 0.2 {
             Visibility::Hidden
         } else {
             Visibility::Visible
@@ -228,34 +215,24 @@ fn highscore_entry_letter_blink(
     }
 }
 
-#[derive(Bundle)]
-struct HighScoreText {
-    text: Text2dBundle,
-    fading: Fading,
-}
-impl HighScoreText {
-    fn new(position: Vec2, rank: u32, name: &str, score: u32, font: Handle<Font>) -> Self {
-        HighScoreText {
-            text: Text2dBundle {
-                text: Text::from_section(
-                    format!("{rank}. {name} - {score}"),
-                    TextStyle {
-                        font,
-                        font_size: 32.0,
-                        color: Color::WHITE,
-                    },
-                ),
-                transform: Transform::from_translation(position.extend(0.1)),
-                ..default()
-            },
-            fading: Fading {
-                from: 0.0,
-                to: 1.0,
-                duration: rank as f32,
-                elapsed: 0.0,
-            },
-        }
-    }
+pub fn high_score_text(
+    position: Vec2,
+    rank: u32,
+    name: &str,
+    score: u32,
+    font: Handle<Font>,
+) -> impl Bundle {
+    (
+        Text2d::new(format!("{rank}. {name} - {score}")),
+        TextFont::from_font(font).with_font_size(32.0),
+        Transform::from_translation(position.extend(0.1)),
+        Fading {
+            from: 0.0,
+            to: 1.0,
+            duration: rank as f32,
+            elapsed: 0.0,
+        },
+    )
 }
 
 impl HighScore {

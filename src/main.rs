@@ -1,7 +1,7 @@
 use std::f32::consts::TAU;
 
-use bevy::{asset::LoadState, prelude::*};
-use rand::{random, thread_rng, Rng};
+use bevy::prelude::*;
+use rand::{Rng, random};
 
 mod bundles;
 mod components;
@@ -11,7 +11,7 @@ mod plugins;
 mod resources;
 mod utils;
 
-use crate::{bundles::*, components::*, constants::*, resources::*, utils::*};
+use crate::{components::*, constants::*, resources::*, utils::*};
 
 #[derive(Debug, Clone, Copy, Default, Eq, PartialEq, Hash, States)]
 enum AppState {
@@ -34,7 +34,7 @@ fn main() {
         .insert_resource(Score(0))
         .insert_resource(LevelStartDelayTimer::default())
         .add_systems(Startup, init)
-        .add_state::<AppState>()
+        .init_state::<AppState>()
         .add_plugins((
             plugins::CameraPlugin,
             plugins::TitleScreenPlugin,
@@ -100,33 +100,35 @@ fn main() {
 
 fn despawn_tagged<T: Component>(mut commands: Commands, query: Query<Entity, With<T>>) {
     for entity in query.iter() {
-        commands.entity(entity).despawn_recursive();
+        commands.entity(entity).despawn();
     }
 }
 
 fn init(asset_server: Res<AssetServer>, mut sprite_sheets: ResMut<SpriteSheets>) {
-    sprite_sheets.images = asset_server.load_folder("img").unwrap();
+    sprite_sheets.load_state = asset_server.load_folder("img");
 }
 fn loading(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut sprite_sheets: ResMut<SpriteSheets>,
-    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
+    mut texture_atlases: ResMut<Assets<TextureAtlasLayout>>,
     mut next_state: ResMut<NextState<AppState>>,
     mut loading_text: Local<Option<Entity>>,
 ) {
     if loading_text.is_none() {
         let font = asset_server.load("fonts/DejaVuSans.ttf");
-        *loading_text = Some(commands.spawn(LoadingTextBundle::new(font)).id());
+        *loading_text = Some(commands.spawn(bundles::loading_text(font)).id());
     }
 
-    let handles = sprite_sheets.images.iter().map(|h| h.id());
-    if let LoadState::Loaded = asset_server.get_group_load_state(handles) {
+    if asset_server
+        .get_recursive_dependency_load_state(&sprite_sheets.load_state)
+        .is_none_or(|state| state.is_loaded())
+    {
         // Initialize texture atlases
         let asteroid_texture = asset_server.load("img/asteroids.png");
-        let mut asteroid_atlas = TextureAtlas::new_empty(asteroid_texture, Vec2::new(512.0, 256.0));
+        let mut asteroid_atlas = TextureAtlasLayout::new_empty(UVec2::new(4, 5));
 
-        fn asteroid_sprite_rects() -> impl Iterator<Item = Rect> {
+        fn asteroid_sprite_rects() -> impl Iterator<Item = URect> {
             let variant_rows = 5;
             let variant_sizes = [8, 16, 32, 48];
             let variant_width: u32 = variant_sizes.iter().sum();
@@ -143,12 +145,9 @@ fn loading(
                         *size_x += size;
                         Some(result)
                     })
-                    .map(move |(size_x, size)| Rect {
-                        min: Vec2::new((variant_x + size_x) as f32, variant_y as f32),
-                        max: Vec2::new(
-                            (variant_x + size_x + size - 1) as f32,
-                            (variant_y + size - 1) as f32,
-                        ),
+                    .map(move |(size_x, size)| URect {
+                        min: UVec2::new(variant_x + size_x, variant_y),
+                        max: UVec2::new(variant_x + size_x + size - 1, variant_y + size - 1),
                     })
             })
         }
@@ -157,7 +156,8 @@ fn loading(
             asteroid_atlas.add_texture(asteroid_rect);
         }
 
-        sprite_sheets.asteroids = texture_atlases.add(asteroid_atlas);
+        sprite_sheets.asteroids_atlas = texture_atlases.add(asteroid_atlas);
+        sprite_sheets.asteroids = asteroid_texture;
 
         sprite_sheets.ship = ShipImages {
             rapid: asset_server.load("img/ship-rapid.png"),
@@ -236,7 +236,7 @@ fn new_game(
     *level = Level(0);
     *score = Score(0);
     for ship_entity in ships_query.iter() {
-        commands.entity(ship_entity).despawn_recursive();
+        commands.entity(ship_entity).despawn();
     }
     next_state.set(AppState::LoadLevel);
 }
@@ -256,23 +256,22 @@ fn load_level(
     let background_texture =
         asset_server.load(&format!("img/background-{}.png", level.background_image()));
     commands
-        .spawn(SpriteBundle {
-            texture: background_texture,
-            transform: Transform::from_xyz(0.0, 0.0, -0.09),
-            ..Default::default()
-        })
+        .spawn((
+            Sprite::from_image(background_texture),
+            Transform::from_xyz(0.0, 0.0, -0.09),
+        ))
         .insert(LevelEntity);
 
-    let mut rng = thread_rng();
+    let mut rng = rand::rng();
     for size in level.asteroids() {
-        let distance: f32 = rng.gen_range(level.asteroid_distance_bounds());
+        let distance: f32 = rng.random_range(level.asteroid_distance_bounds());
         let direction = random::<f32>() * std::f32::consts::TAU;
         let position: Vec2 = Vec2::from_angle(direction) * distance;
         let heading = random::<f32>() * std::f32::consts::TAU;
-        let speed = rng.gen_range(level.asteroid_speed_bounds());
+        let speed = rng.random_range(level.asteroid_speed_bounds());
         let velocity = Vec2::from_angle(heading) * speed;
         let spinning_speed = random::<f32>() - 0.5;
-        commands.spawn(AsteroidBundle::new(
+        commands.spawn(bundles::asteroid(
             sprite_sheets.as_ref(),
             asteroid_variant,
             size,
@@ -290,9 +289,9 @@ fn load_level(
             ..Ship::default()
         };
         commands
-            .spawn(ShipBundle::new(ship, sprite_sheets.as_ref()))
+            .spawn(bundles::ship(ship, sprite_sheets.as_ref()))
             .with_children(|ship| {
-                ship.spawn(ShipShieldBundle::new(&sprite_sheets.ship));
+                ship.spawn(bundles::ship_shield(&sprite_sheets.ship));
                 let projectile = ShipProjectile::Beam { power: 20.0 };
                 let beam_from = Vec2::ZERO;
                 let length = 0.0;
@@ -300,15 +299,14 @@ fn load_level(
                 let texture = asset_server.load("img/continuous_beam.png");
                 let mut transform = Transform::from_xyz(0.0, 0.0, -0.01);
                 transform.scale.y = length / 128.0;
-                ship.spawn(ShipBeamBundle::new(
+                ship.spawn(bundles::ship_beam(
                     projectile, texture, transform, beam_from, length, max_length,
                 ))
                 .with_children(|beam| {
-                    beam.spawn(SpriteBundle {
-                        texture: asset_server.load("img/continuous_tip.png"),
-                        transform: Transform::from_xyz(0.0, 128.0, 0.0),
-                        ..Default::default()
-                    })
+                    beam.spawn((
+                        Sprite::from_image(asset_server.load("img/continuous_tip.png")),
+                        Transform::from_xyz(0.0, 128.0, 0.0),
+                    ))
                     .insert(BeamTip);
                 });
             });
@@ -320,7 +318,7 @@ fn load_level(
         }
     }
 
-    commands.spawn(GameNotificationBundle::new(
+    commands.spawn(bundles::game_notification(
         format!("Level {}", level.number()),
         asset_server.load("fonts/DejaVuSans.ttf"),
         Vec2::ZERO,
@@ -354,25 +352,23 @@ fn spinning_system(mut spinning_query: Query<(&Spinning, &mut Transform)>, time:
 }
 fn scaling_system(mut scaling_query: Query<(&mut Scaling, &mut Transform)>, time: Res<Time>) {
     for (mut scaling, mut transform) in scaling_query.iter_mut() {
-        scaling.elapsed += time.delta_seconds();
+        scaling.elapsed += time.delta_secs();
         let scale = lerp(scaling.from, scaling.to, scaling.elapsed / scaling.duration);
         transform.scale = Vec3::splat(scale);
     }
 }
 fn fading_system(
-    mut fading_query: Query<(&mut Fading, Option<&mut Text>, Option<&mut Sprite>)>,
+    mut fading_query: Query<(&mut Fading, Option<&mut TextColor>, Option<&mut Sprite>)>,
     time: Res<Time>,
 ) {
-    for (mut fading, text, sprite) in fading_query.iter_mut() {
-        fading.elapsed += time.delta_seconds();
+    for (mut fading, text_color, sprite) in fading_query.iter_mut() {
+        fading.elapsed += time.delta_secs();
         let alpha = lerp(fading.from, fading.to, fading.elapsed / fading.duration);
-        if let Some(mut text) = text {
-            for section in text.sections.iter_mut() {
-                section.style.color.set_a(alpha);
-            }
+        if let Some(mut text_color) = text_color {
+            text_color.set_alpha(alpha);
         }
         if let Some(mut sprite) = sprite {
-            sprite.color.set_a(alpha);
+            sprite.color.set_alpha(alpha);
         }
     }
 }
@@ -385,7 +381,7 @@ fn expiring_system(
     for (entity, mut expiring) in expiring_query.iter_mut() {
         expiring.life -= time.delta().as_secs_f32();
         if expiring.life < 0.0 {
-            commands.entity(entity).despawn_recursive()
+            commands.entity(entity).despawn()
         }
     }
 }
@@ -411,7 +407,7 @@ fn ship_respawn_system(
 ) {
     for (mut ship, mut transform, mut moving, mut visibility) in ships_query.iter_mut() {
         if ship.lives > 0 && ship.respawn_delay > 0.0 {
-            ship.respawn_delay -= time.delta_seconds();
+            ship.respawn_delay -= time.delta_secs();
             if ship.respawn_delay > 0.0 {
                 *visibility = Visibility::Hidden;
                 ship.invulnerability = 100.0;
@@ -502,7 +498,7 @@ fn ship_physics(
                         rotation: transform.rotation.clone(),
                         ..Default::default()
                     };
-                    commands.spawn(ShipProjectileBundle::new(
+                    commands.spawn(bundles::ship_projectile(
                         projectile,
                         texture.clone(),
                         velocity.clone(),
@@ -510,7 +506,7 @@ fn ship_physics(
                         0.25,
                         1.0,
                     ));
-                    commands.spawn(ShipProjectileBundle::new(
+                    commands.spawn(bundles::ship_projectile(
                         projectile,
                         texture,
                         velocity,
@@ -537,7 +533,7 @@ fn ship_physics(
                             translation: transform.translation,
                             ..Default::default()
                         };
-                        commands.spawn(ShipProjectileBundle::new(
+                        commands.spawn(bundles::ship_projectile(
                             projectile,
                             texture.clone(),
                             velocity,
@@ -564,7 +560,7 @@ fn ship_physics(
                         rotation,
                         scale,
                     };
-                    commands.spawn(ShipProjectileBundle::new(
+                    commands.spawn(bundles::ship_projectile(
                         projectile, texture, velocity, transform, 0.5, power,
                     ));
                     ship.weapon_cooldown =
@@ -612,29 +608,26 @@ fn beam_sprite_system(
     for (beam, mut transform, children) in beam_query.iter_mut() {
         transform.scale.y = beam.length / 128.0;
         for child in children.iter() {
-            if let Ok(mut tip_transform) = tip_query.get_mut(*child) {
+            if let Ok(mut tip_transform) = tip_query.get_mut(child) {
                 tip_transform.scale.y = 1.0 / transform.scale.y;
             }
         }
     }
 }
-fn ship_sprite(
-    mut ship_query: Query<(&Ship, &mut Sprite, &mut Handle<Image>)>,
-    sprite_sheets: Res<SpriteSheets>,
-) {
-    for (ship, mut sprite, mut image) in ship_query.iter_mut() {
-        *image = sprite_sheets.ship.choose(&ship);
+fn ship_sprite(mut ship_query: Query<(&Ship, &mut Sprite)>, sprite_sheets: Res<SpriteSheets>) {
+    for (ship, mut sprite) in ship_query.iter_mut() {
+        sprite.image = sprite_sheets.ship.choose(&ship);
         let alpha = if ship.invulnerability > 0.0 { 0.5 } else { 1.0 };
-        sprite.color.set_a(alpha);
+        sprite.color.set_alpha(alpha);
     }
 }
 
 fn shield_sprite(
-    mut shield_query: Query<(&Parent, &mut Visibility), With<ShipShield>>,
     ship_query: Query<&Ship>,
+    mut ship_shield_query: Query<(&mut Visibility, &ChildOf), With<ShipShield>>,
 ) {
-    for (parent, mut visibility) in shield_query.iter_mut() {
-        let ship = ship_query.get(parent.get());
+    for (mut visibility, child_of) in ship_shield_query.iter_mut() {
+        let ship = ship_query.get(child_of.0);
         if ship
             .expect("ShipShield should have a Ship parent")
             .shield_level
@@ -717,7 +710,7 @@ fn ship_projectile_asteroid_hit_system(
                     let velocity =
                         (direction + (direction.perp() * lerp(-0.5, 0.5, random()))) * speed;
                     let acceleration = Vec2::ZERO;
-                    commands.spawn(SparkParticleBundle::new(
+                    commands.spawn(bundles::spark_particle(
                         point,
                         velocity,
                         acceleration,
@@ -733,8 +726,12 @@ fn asteroid_hit_system(
     mut asteroids_query: Query<(&mut Moving, &CollisionShape, &Transform), With<Asteroid>>,
 ) {
     let mut pairs = asteroids_query.iter_combinations_mut();
-    while let Some([(mut a_moving, a_shape, a_transform), (mut b_moving, b_shape, b_transform)]) =
-        pairs.fetch_next()
+    while let Some(
+        [
+            (mut a_moving, a_shape, a_transform),
+            (mut b_moving, b_shape, b_transform),
+        ],
+    ) = pairs.fetch_next()
     {
         if a_shape.intersects(b_shape) {
             let a_position = a_transform.translation.truncate();
@@ -761,14 +758,14 @@ fn asteroid_split_system(
         if asteroid.integrity <= 0 {
             let score_delta = asteroid_score(asteroid.size);
             score.increase(score_delta);
-            commands.spawn(GameNotificationBundle::new(
+            commands.spawn(bundles::game_notification(
                 format!("{}", score_delta),
                 asset_server.load("fonts/DejaVuSans.ttf"),
                 transform.translation.truncate(),
                 20.0,
                 1.0,
             ));
-            commands.spawn(CoronaParticleBundle::new(
+            commands.spawn(bundles::corona_particle(
                 transform.translation.truncate(),
                 asteroid.size.radius() / AsteroidSize::Large.radius(),
                 &sprite_sheets.particles,
@@ -788,7 +785,7 @@ fn asteroid_split_system(
                 for dir in data {
                     let position = parent_position + dir * 5.0;
                     let velocity = dir * 30.0;
-                    commands.spawn(AsteroidBundle::new(
+                    commands.spawn(bundles::asteroid(
                         sprite_sheets.as_ref(),
                         asteroid.variant,
                         size,
@@ -819,15 +816,16 @@ fn gameover_system(
     mut maybe_timer: Local<Option<Timer>>,
     time: Res<Time>,
 ) {
-    let ship = ship_query.single();
-    if ship.lives == 0 {
-        if let Some(timer) = maybe_timer.as_mut() {
-            if timer.tick(time.delta()).just_finished() {
-                *maybe_timer = None;
-                state.set(AppState::HighScoreEntry);
+    if let Ok(ship) = ship_query.single() {
+        if ship.lives == 0 {
+            if let Some(timer) = maybe_timer.as_mut() {
+                if timer.tick(time.delta()).just_finished() {
+                    *maybe_timer = None;
+                    state.set(AppState::HighScoreEntry);
+                }
+            } else {
+                *maybe_timer = Some(Timer::from_seconds(3.0, TimerMode::Once))
             }
-        } else {
-            *maybe_timer = Some(Timer::from_seconds(3.0, TimerMode::Once))
         }
     }
 }
@@ -841,10 +839,10 @@ fn asteroid_score(size: AsteroidSize) -> u32 {
     }
 }
 
-impl rand::distributions::Distribution<Powerup> for rand::distributions::Standard {
+impl rand::distr::Distribution<Powerup> for rand::distr::StandardUniform {
     fn sample<R: rand::Rng + ?Sized>(&self, rng: &mut R) -> Powerup {
         use Powerup::*;
-        match rng.gen_range(0..7) {
+        match rng.random_range(0..7) {
             0 => Laser,
             1 => Spread,
             2 => Beam,
@@ -899,14 +897,14 @@ fn ship_powerup_collision_system(
                 };
                 commands.entity(powerup_entity).despawn();
                 let position = transform.translation.truncate();
-                commands.spawn(GameNotificationBundle::new(
+                commands.spawn(bundles::game_notification(
                     text.to_owned(),
                     asset_server.load("fonts/DejaVuSans.ttf"),
                     position,
                     20.0,
                     1.0,
                 ));
-                commands.spawn(RingParticleBundle::new(position, &sprite_sheets.particles));
+                commands.spawn(bundles::ring_particle(position, &sprite_sheets.particles));
             }
         }
     }
@@ -942,11 +940,8 @@ fn ship_asteroid_collision_system(
                     ship_moving.velocity = diff * speed;
                 } else {
                     ship.die();
-                    commands.spawn(ExplosionBundle::new(
-                        &sprite_sheets.explosion,
-                        ship_position,
-                    ));
-                    commands.spawn(WaveParticleBundle::new(
+                    commands.spawn(bundles::explosion(&sprite_sheets.explosion, ship_position));
+                    commands.spawn(bundles::wave_particle(
                         ship_position,
                         &sprite_sheets.particles,
                     ));
@@ -956,12 +951,9 @@ fn ship_asteroid_collision_system(
     }
 }
 
-fn animation_system(
-    mut animated_query: Query<(&mut Animated, &mut Handle<Image>)>,
-    time: Res<Time>,
-) {
-    let delta = time.delta_seconds();
-    for (mut animated, mut image) in animated_query.iter_mut() {
+fn animation_system(mut animated_query: Query<(&mut Animated, &mut Sprite)>, time: Res<Time>) {
+    let delta = time.delta_secs();
+    for (mut animated, mut sprite) in animated_query.iter_mut() {
         animated.elapsed += delta;
         let position = if animated.looping {
             animated.elapsed.rem_euclid(animated.animation.duration)
@@ -972,7 +964,7 @@ fn animation_system(
             / animated.animation.duration)
             .floor() as usize;
 
-        *image = animated.animation.frames[frame].clone()
+        sprite.image = animated.animation.frames[frame].clone()
     }
 }
 
@@ -982,24 +974,25 @@ fn collision_shape_system(mut query: Query<(&mut CollisionShape, &GlobalTransfor
     }
 }
 
-fn cheat_system(keyboard_input: Res<Input<KeyCode>>, mut ship_query: Query<&mut Ship>) {
-    let mut ship = ship_query.single_mut();
-    if keyboard_input.just_pressed(KeyCode::F1) {
-        ship.weapon_rapid_level = ship.weapon_rapid_level.min(7) + 1;
-    }
-    if keyboard_input.just_pressed(KeyCode::F2) {
-        ship.weapon_spread_level = ship.weapon_spread_level.min(7) + 1;
-    }
-    if keyboard_input.just_pressed(KeyCode::F3) {
-        ship.weapon_beam_level = ship.weapon_beam_level.min(7) + 1;
-    }
-    if keyboard_input.just_pressed(KeyCode::F4) {
-        ship.weapon_plasma_level = ship.weapon_plasma_level.min(7) + 1;
-    }
-    if keyboard_input.just_pressed(KeyCode::F5) {
-        ship.shield_level += 1;
-    }
-    if keyboard_input.just_pressed(KeyCode::F6) {
-        ship.lives += 1;
+fn cheat_system(keyboard_input: Res<ButtonInput<KeyCode>>, mut ship_query: Query<&mut Ship>) {
+    if let Ok(mut ship) = ship_query.single_mut() {
+        if keyboard_input.just_pressed(KeyCode::F1) {
+            ship.weapon_rapid_level = ship.weapon_rapid_level.min(7) + 1;
+        }
+        if keyboard_input.just_pressed(KeyCode::F2) {
+            ship.weapon_spread_level = ship.weapon_spread_level.min(7) + 1;
+        }
+        if keyboard_input.just_pressed(KeyCode::F3) {
+            ship.weapon_beam_level = ship.weapon_beam_level.min(7) + 1;
+        }
+        if keyboard_input.just_pressed(KeyCode::F4) {
+            ship.weapon_plasma_level = ship.weapon_plasma_level.min(7) + 1;
+        }
+        if keyboard_input.just_pressed(KeyCode::F5) {
+            ship.shield_level += 1;
+        }
+        if keyboard_input.just_pressed(KeyCode::F6) {
+            ship.lives += 1;
+        }
     }
 }

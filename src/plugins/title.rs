@@ -20,75 +20,66 @@ pub struct TitleStart {
 }
 
 fn init_title(mut commands: Commands, asset_server: Res<AssetServer>) {
-    let background = asset_server.load("img/title-background.png");
-    commands
-        .spawn(SpriteBundle {
-            texture: background,
-            ..default()
-        })
-        .insert(TitleEntity);
+    commands.spawn((
+        Sprite::from_image(asset_server.load("img/title-background.png")),
+        TitleEntity,
+    ));
 
-    let space = asset_server.load("img/title-space.png");
-    commands
-        .spawn(SpriteBundle {
-            texture: space,
-            visibility: Visibility::Hidden,
-            ..default()
-        })
-        .insert(TitleEntity)
-        .insert(TitleText {
+    commands.spawn((
+        Sprite::from_image(asset_server.load("img/title-space.png")),
+        Visibility::Hidden,
+        TitleEntity,
+        TitleText {
             from: Vec2::new(-800.0, -50.0),
             to: Vec2::new(-150.0, 50.0),
             at: 1.0,
             duration: 0.5,
             elapsed: 0.0,
-        });
-    let rocks = asset_server.load("img/title-rocks.png");
-    commands
-        .spawn(SpriteBundle {
-            texture: rocks,
-            visibility: Visibility::Hidden,
-            ..default()
-        })
-        .insert(TitleEntity)
-        .insert(TitleText {
+        },
+    ));
+
+    commands.spawn((
+        Sprite::from_image(asset_server.load("img/title-rocks.png")),
+        Visibility::Hidden,
+        TitleEntity,
+        TitleText {
             from: Vec2::new(700.0, 50.0),
             to: Vec2::new(0.0, -50.0),
             at: 1.5,
             duration: 0.5,
             elapsed: 0.0,
-        });
-    let exclamation = asset_server.load("img/title-exclamation.png");
-    commands
-        .spawn(SpriteBundle {
-            texture: exclamation,
-            visibility: Visibility::Hidden,
-            ..default()
-        })
-        .insert(TitleEntity)
-        .insert(TitleText {
+        },
+    ));
+
+    commands.spawn((
+        Sprite::from_image(asset_server.load("img/title-exclamation.png")),
+        Visibility::Hidden,
+        TitleEntity,
+        TitleText {
             from: Vec2::new(450.0, 370.0),
             to: Vec2::new(320.0, 80.0),
             at: 2.2,
             duration: 0.3,
             elapsed: 0.0,
-        });
-    let start = asset_server.load("img/title-start.png");
-    commands
-        .spawn(SpriteBundle {
-            texture: start,
-            transform: Transform::from_xyz(0.0, -200.0, 0.01),
-            visibility: Visibility::Hidden,
-            ..default()
-        })
-        .insert(TitleEntity)
-        .insert(TitleStart {
+        },
+    ));
+
+    commands.spawn((
+        Sprite::from_image(asset_server.load("img/title-start.png")),
+        Transform::from_xyz(0.0, -200.0, 0.01),
+        Visibility::Hidden,
+        TitleEntity,
+        TitleStart {
             at: 2.8,
             blink: 0.2,
             elapsed: 0.0,
-        });
+        },
+    ));
 }
-fn title_input(keyboard_input: Res<Input<KeyCode>>, mut next_state: ResMut<NextState<AppState>>) {
+fn title_input(
+    keyboard_input: Res<ButtonInput<KeyCode>>,
+    mut next_state: ResMut<NextState<AppState>>,
+) {
     if keyboard_input.just_pressed(KeyCode::Space) {
         next_state.set(AppState::NewGame)
     }
@@ -98,7 +89,7 @@ fn title_text_system(
     time: Res<Time>,
 ) {
     for (mut text, mut transform, mut visibility) in title_text_query.iter_mut() {
-        text.elapsed += time.delta_seconds();
+        text.elapsed += time.delta_secs();
         *visibility = if text.elapsed >= text.at {
             Visibility::Visible
         } else {
@@ -113,7 +104,7 @@ fn title_start_system(
     time: Res<Time>,
 ) {
     for (mut start, mut visibility) in title_start_query.iter_mut() {
-        start.elapsed += time.delta_seconds();
+        start.elapsed += time.delta_secs();
         *visibility = if (start.elapsed - start.at)
             .max(0.0)
             .rem_euclid(start.blink * 2.0)

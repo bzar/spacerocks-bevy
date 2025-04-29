@@ -19,51 +19,37 @@ pub struct InputState {
 
 pub fn update_input_state(
     mut state: ResMut<InputState>,
-    keyboard: Res<Input<KeyCode>>,
-    gamepads: Res<Gamepads>,
-    buttons: Res<Input<GamepadButton>>,
-    axes: Res<Axis<GamepadAxis>>,
+    keyboard: Res<ButtonInput<KeyCode>>,
+    gamepads: Query<&Gamepad>,
 ) {
-    state.left = keyboard.pressed(KeyCode::A);
-    state.right = keyboard.pressed(KeyCode::D);
-    state.up = keyboard.just_pressed(KeyCode::W);
-    state.down = keyboard.just_pressed(KeyCode::S);
-    state.throttle = keyboard.pressed(KeyCode::W);
+    state.left = keyboard.pressed(KeyCode::KeyA);
+    state.right = keyboard.pressed(KeyCode::KeyD);
+    state.up = keyboard.just_pressed(KeyCode::KeyW);
+    state.down = keyboard.just_pressed(KeyCode::KeyS);
+    state.throttle = keyboard.pressed(KeyCode::KeyW);
     state.fire = keyboard.pressed(KeyCode::Space);
     state.ok = keyboard.just_pressed(KeyCode::Space);
-    state.weapon_1 = keyboard.just_pressed(KeyCode::Key1);
-    state.weapon_2 = keyboard.just_pressed(KeyCode::Key2);
-    state.weapon_3 = keyboard.just_pressed(KeyCode::Key3);
-    state.weapon_4 = keyboard.just_pressed(KeyCode::Key4);
-    state.weapon_next = keyboard.just_pressed(KeyCode::E);
-    state.weapon_prev = keyboard.just_pressed(KeyCode::Q);
+    state.weapon_1 = keyboard.just_pressed(KeyCode::Digit1);
+    state.weapon_2 = keyboard.just_pressed(KeyCode::Digit2);
+    state.weapon_3 = keyboard.just_pressed(KeyCode::Digit3);
+    state.weapon_4 = keyboard.just_pressed(KeyCode::Digit4);
+    state.weapon_next = keyboard.just_pressed(KeyCode::KeyE);
+    state.weapon_prev = keyboard.just_pressed(KeyCode::KeyQ);
 
-    for gamepad in gamepads.iter() {
-        let left_stick_x = axes
-            .get(GamepadAxis::new(gamepad, GamepadAxisType::LeftStickX))
-            .unwrap_or(0.0);
-        state.left |= buttons.pressed(GamepadButton::new(gamepad, GamepadButtonType::DPadLeft))
-            || left_stick_x < 0.1;
-        state.right |= buttons.pressed(GamepadButton::new(gamepad, GamepadButtonType::DPadRight))
-            || left_stick_x > 0.1;
-        let left_stick_y = axes
-            .get(GamepadAxis::new(gamepad, GamepadAxisType::LeftStickY))
-            .unwrap_or(0.0);
-        state.up |= buttons.pressed(GamepadButton::new(gamepad, GamepadButtonType::DPadUp))
-            || left_stick_y > 0.1;
-        state.down |= buttons.pressed(GamepadButton::new(gamepad, GamepadButtonType::DPadDown))
-            || left_stick_y < 0.1;
-        state.throttle |= buttons.pressed(GamepadButton::new(gamepad, GamepadButtonType::South))
-            || buttons.pressed(GamepadButton::new(gamepad, GamepadButtonType::LeftTrigger));
-        state.fire |= buttons.pressed(GamepadButton::new(gamepad, GamepadButtonType::West))
-            || buttons.pressed(GamepadButton::new(gamepad, GamepadButtonType::RightTrigger));
-        state.ok |= buttons.just_pressed(GamepadButton::new(gamepad, GamepadButtonType::West))
-            || buttons.just_pressed(GamepadButton::new(gamepad, GamepadButtonType::RightTrigger));
-        state.weapon_next |= buttons.pressed(GamepadButton::new(
-            gamepad,
-            GamepadButtonType::RightTrigger2,
-        ));
-        state.weapon_prev |=
-            buttons.pressed(GamepadButton::new(gamepad, GamepadButtonType::LeftTrigger2));
+    for gamepad in &gamepads {
+        let left_stick_x = gamepad.get(GamepadAxis::LeftStickX).unwrap_or(0.0);
+        state.left |= gamepad.pressed(GamepadButton::DPadLeft) || left_stick_x < 0.1;
+        state.right |= gamepad.pressed(GamepadButton::DPadRight) || left_stick_x > 0.1;
+        let left_stick_y = gamepad.get(GamepadAxis::LeftStickY).unwrap_or(0.0);
+        state.up |= gamepad.pressed(GamepadButton::DPadUp) || left_stick_y > 0.1;
+        state.down |= gamepad.pressed(GamepadButton::DPadDown) || left_stick_y < 0.1;
+        state.throttle |=
+            gamepad.pressed(GamepadButton::South) || gamepad.pressed(GamepadButton::LeftTrigger);
+        state.fire |=
+            gamepad.pressed(GamepadButton::West) || gamepad.pressed(GamepadButton::RightTrigger);
+        state.ok |= gamepad.just_pressed(GamepadButton::West)
+            || gamepad.just_pressed(GamepadButton::RightTrigger);
+        state.weapon_next |= gamepad.pressed(GamepadButton::RightTrigger2);
+        state.weapon_prev |= gamepad.pressed(GamepadButton::LeftTrigger2);
     }
 }

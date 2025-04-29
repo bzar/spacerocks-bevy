@@ -1,4 +1,4 @@
-use crate::{bundles::*, components::*, constants::*, lerp, resources::*, AppState};
+use crate::{AppState, bundles, components::*, constants::*, lerp, resources::*};
 use bevy::prelude::*;
 use rand::random;
 
@@ -24,7 +24,7 @@ impl Plugin for UfoPlugin {
     }
 }
 #[derive(Component)]
-struct Ufo {
+pub struct Ufo {
     pub start_position: Vec2,
     pub end_position: Vec2,
     pub frequency: f32,
@@ -84,7 +84,7 @@ fn ufo_spawn_system(
             (true, true) => Vec2::new(-span.x, d.y),
         };
 
-        let ufo = Ufo {
+        let ufo_obj = Ufo {
             start_position: position,
             end_position: -position,
             frequency: random::<f32>() * 5.0,
@@ -95,7 +95,7 @@ fn ufo_spawn_system(
             shoot_accuracy: level.ufo_shoot_accuracy(),
             life: 20,
         };
-        commands.spawn(UfoBundle::new(&sprite_sheets.ufo, ufo));
+        commands.spawn(ufo(&sprite_sheets.ufo, ufo_obj));
     }
 }
 
@@ -105,7 +105,7 @@ fn ufo_movement_system(
     time: Res<Time>,
 ) {
     for (entity, mut ufo, mut transform) in ufos_query.iter_mut() {
-        ufo.time += time.delta_seconds();
+        ufo.time += time.delta_secs();
         let t = ufo.time / ufo.duration;
         let journey = ufo.end_position - ufo.start_position;
         let deviation = ufo.amplitude * f32::sin(ufo.frequency * std::f32::consts::TAU * t);
@@ -120,13 +120,13 @@ fn ufo_movement_system(
     }
 }
 fn ufo_animation_system(
-    mut ufos_query: Query<(&Ufo, &mut Handle<Image>)>,
+    mut ufos_query: Query<(&Ufo, &mut Sprite)>,
     sprite_sheets: Res<SpriteSheets>,
 ) {
     let frame_duration = 1. / 5.;
-    for (ufo, mut image) in ufos_query.iter_mut() {
+    for (ufo, mut sprite) in ufos_query.iter_mut() {
         let frame = (ufo.time / frame_duration) as usize % sprite_sheets.ufo.ship.len();
-        *image = sprite_sheets.ufo.ship[frame].clone();
+        sprite.image = sprite_sheets.ufo.ship[frame].clone();
     }
 }
 fn ufo_shoot_system(
@@ -136,28 +136,29 @@ fn ufo_shoot_system(
     sprite_sheets: Res<SpriteSheets>,
     time: Res<Time>,
 ) {
-    let ship_transform = ships_query.single();
-    for (mut ufo, ufo_transform) in ufos_query.iter_mut() {
-        ufo.shoot_delay -= time.delta_seconds();
-        if ufo.shoot_delay <= 0.0 {
-            ufo.shoot_delay = 2.0; // FIXME
-            let target = (ship_transform.translation - ufo_transform.translation)
-                .truncate()
-                .normalize();
-            let aim_error =
-                (1.0 - ufo.shoot_accuracy) * (random::<f32>() - 0.5) * std::f32::consts::PI;
-            let aim = Vec2::from_angle(aim_error).rotate(target);
-            let speed = 500.0; // FIXME
-            let velocity = aim * speed;
-            let angle = Vec2::Y.angle_between(aim);
-            let life = 2.0;
-            commands.spawn(UfoLaserBundle::new(
-                &sprite_sheets.ufo,
-                ufo_transform.translation.truncate(),
-                angle,
-                velocity,
-                life,
-            ));
+    if let Ok(ship_transform) = ships_query.single() {
+        for (mut ufo, ufo_transform) in ufos_query.iter_mut() {
+            ufo.shoot_delay -= time.delta_secs();
+            if ufo.shoot_delay <= 0.0 {
+                ufo.shoot_delay = 2.0; // FIXME
+                let target = (ship_transform.translation - ufo_transform.translation)
+                    .truncate()
+                    .normalize();
+                let aim_error =
+                    (1.0 - ufo.shoot_accuracy) * (random::<f32>() - 0.5) * std::f32::consts::PI;
+                let aim = Vec2::from_angle(aim_error).rotate(target);
+                let speed = 500.0; // FIXME
+                let velocity = aim * speed;
+                let angle = Vec2::Y.angle_to(aim);
+                let life = 2.0;
+                commands.spawn(ufo_laser(
+                    &sprite_sheets.ufo,
+                    ufo_transform.translation.truncate(),
+                    angle,
+                    velocity,
+                    life,
+                ));
+            }
         }
     }
 }
@@ -182,11 +183,8 @@ fn ship_ufo_collision_system(
                     ufo.life = 0;
                 } else {
                     ship.die();
-                    commands.spawn(ExplosionBundle::new(
-                        &sprite_sheets.explosion,
-                        ship_position,
-                    ));
-                    commands.spawn(WaveParticleBundle::new(
+                    commands.spawn(bundles::explosion(&sprite_sheets.explosion, ship_position));
+                    commands.spawn(bundles::wave_particle(
                         ship_position,
                         &sprite_sheets.particles,
                     ));
@@ -216,11 +214,8 @@ fn ship_ufo_laser_collision_system(
                     ship_moving.velocity += laser_moving.velocity * 0.1;
                 } else {
                     ship.die();
-                    commands.spawn(ExplosionBundle::new(
-                        &sprite_sheets.explosion,
-                        ship_position,
-                    ));
-                    commands.spawn(WaveParticleBundle::new(
+                    commands.spawn(bundles::explosion(&sprite_sheets.explosion, ship_position));
+                    commands.spawn(bundles::wave_particle(
                         ship_position,
                         &sprite_sheets.particles,
                     ));
@@ -296,7 +291,7 @@ fn ship_projectile_ufo_hit_system(
                     let velocity =
                         (direction + (direction.perp() * lerp(-0.5, 0.5, random()))) * speed;
                     let acceleration = Vec2::ZERO;
-                    commands.spawn(SparkParticleBundle::new(
+                    commands.spawn(bundles::spark_particle(
                         point,
                         velocity,
                         acceleration,
@@ -320,17 +315,17 @@ fn ufo_destroy_system(
             let speed = lerp(30.0, 80.0, random());
             let velocity = Vec2::from_angle(random::<f32>() * std::f32::consts::TAU) * speed;
             let position = ufo_transform.translation.truncate();
-            commands.spawn(PowerupBundle::new(
+            commands.spawn(bundles::powerup(
                 random(),
                 position,
                 velocity,
                 5.0,
                 &sprite_sheets.powerup,
             ));
-            commands.spawn(ExplosionBundle::new(&sprite_sheets.explosion, position));
-            commands.spawn(WaveParticleBundle::new(position, &sprite_sheets.particles));
+            commands.spawn(bundles::explosion(&sprite_sheets.explosion, position));
+            commands.spawn(bundles::wave_particle(position, &sprite_sheets.particles));
             score.increase(100);
-            commands.spawn(GameNotificationBundle::new(
+            commands.spawn(bundles::game_notification(
                 format!("{}", score.value()),
                 asset_server.load("fonts/DejaVuSans.ttf"),
                 position,
@@ -341,71 +336,46 @@ fn ufo_destroy_system(
         }
     }
 }
-#[derive(Bundle)]
-struct UfoBundle {
-    sprite_bundle: SpriteBundle,
-    ufo: Ufo,
-    level_entity: LevelEntity,
-    collision_shape: CollisionShape,
-}
-impl UfoBundle {
-    pub fn new(ufo_images: &UfoImages, ufo: Ufo) -> Self {
-        let center = ufo.start_position.clone();
-        UfoBundle {
-            sprite_bundle: SpriteBundle {
-                texture: ufo_images.ship[0].clone(),
-                transform: Transform::from_translation(ufo.start_position.extend(0.)),
-                ..Default::default()
-            },
-            ufo,
-            level_entity: LevelEntity,
-            collision_shape: CollisionShape::new(
-                Shape::Circle {
-                    center: Vec2::ZERO,
-                    radius: 16.0,
-                },
-                Transform::from_translation(center.extend(0.)),
-            ),
-        }
-    }
-}
 
-#[derive(Bundle)]
-struct UfoLaserBundle {
-    sprite_bundle: SpriteBundle,
-    ufo_laser: UfoLaser,
-    moving: Moving,
-    expiring: Expiring,
-    collision_shape: CollisionShape,
+pub fn ufo(ufo_images: &UfoImages, ufo: Ufo) -> impl Bundle {
+    (
+        Sprite::from_image(ufo_images.ship[0].clone()),
+        Transform::from_translation(ufo.start_position.extend(0.)),
+        LevelEntity,
+        CollisionShape::new(
+            Shape::Circle {
+                center: Vec2::ZERO,
+                radius: 16.0,
+            },
+            Transform::from_translation(ufo.start_position.extend(0.)),
+        ),
+        ufo,
+    )
 }
-impl UfoLaserBundle {
-    pub fn new(
-        ufo_images: &UfoImages,
-        position: Vec2,
-        rotation: f32,
-        velocity: Vec2,
-        life: f32,
-    ) -> Self {
-        UfoLaserBundle {
-            sprite_bundle: SpriteBundle {
-                texture: ufo_images.laser.clone(),
-                transform: Transform::from_translation(position.extend(0.))
-                    .with_rotation(Quat::from_rotation_z(rotation)),
-                ..Default::default()
+pub fn ufo_laser(
+    ufo_images: &UfoImages,
+    position: Vec2,
+    rotation: f32,
+    velocity: Vec2,
+    life: f32,
+) -> impl Bundle {
+    (
+        Sprite::from_image(ufo_images.laser.clone()),
+        Transform::from_translation(position.extend(0.))
+            .with_rotation(Quat::from_rotation_z(rotation)),
+        LevelEntity,
+        UfoLaser,
+        Moving {
+            velocity,
+            ..Default::default()
+        },
+        Expiring { life },
+        CollisionShape::new(
+            Shape::Circle {
+                center: Vec2::ZERO,
+                radius: 1.0,
             },
-            ufo_laser: UfoLaser,
-            moving: Moving {
-                velocity,
-                ..Default::default()
-            },
-            expiring: Expiring { life },
-            collision_shape: CollisionShape::new(
-                Shape::Circle {
-                    center: Vec2::ZERO,
-                    radius: 1.0,
-                },
-                Transform::from_translation(position.extend(0.)),
-            ),
-        }
-    }
+            Transform::from_translation(position.extend(0.)),
+        ),
+    )
 }

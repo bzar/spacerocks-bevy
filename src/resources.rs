@@ -64,8 +64,9 @@ pub struct ParticleImages {
 }
 #[derive(Default, Resource)]
 pub struct SpriteSheets {
-    pub asteroids: Handle<TextureAtlas>,
-    pub images: Vec<HandleUntyped>,
+    pub asteroids_atlas: Handle<TextureAtlasLayout>,
+    pub asteroids: Handle<Image>,
+    pub load_state: Handle<bevy::asset::LoadedFolder>,
     pub ship: ShipImages,
     pub ufo: UfoImages,
     pub powerup: PowerupImages,

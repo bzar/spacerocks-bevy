@@ -3,23 +3,23 @@ use bevy::{prelude::*, render::camera::Viewport};
 use crate::constants::*;
 
 fn add_camera(mut commands: Commands, window_query: Query<&Window>) {
-    let window = window_query.single();
-    commands.spawn(Camera2dBundle {
-        projection: OrthographicProjection {
+    let window = window_query.single().unwrap();
+    commands.spawn((
+        Camera2d,
+        Camera {
+            viewport: Some(window_to_viewport(window, GAME_WIDTH, GAME_HEIGHT)),
+            ..default()
+        },
+        Projection::Orthographic(OrthographicProjection {
             near: -1.0,
             scaling_mode: bevy::render::camera::ScalingMode::AutoMin {
                 min_width: GAME_WIDTH as f32,
                 min_height: GAME_HEIGHT as f32,
             },
             area: Rect::from_center_size(Vec2::ZERO, Vec2::new(800.0, 480.0)),
-            ..Default::default()
-        },
-        camera: Camera {
-            viewport: Some(window_to_viewport(window, GAME_WIDTH, GAME_HEIGHT)),
-            ..default()
-        },
-        ..Default::default()
-    });
+            ..OrthographicProjection::default_2d()
+        }),
+    ));
 }
 fn window_to_viewport(window: &Window, width: u32, height: u32) -> Viewport {
     let physical_size = UVec2::new(
@@ -41,8 +41,8 @@ fn window_to_viewport(window: &Window, width: u32, height: u32) -> Viewport {
     }
 }
 fn viewport_system(mut camera_query: Query<&mut Camera>, window_query: Query<&Window>) {
-    let mut camera = camera_query.single_mut();
-    let window = window_query.single();
+    let mut camera = camera_query.single_mut().unwrap();
+    let window = window_query.single().unwrap();
     camera.viewport = Some(window_to_viewport(window, GAME_WIDTH, GAME_HEIGHT));
 }
 pub struct CameraPlugin;

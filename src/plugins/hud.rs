@@ -1,4 +1,4 @@
-use crate::{components::*, constants::*, resources::*, AppState};
+use crate::{AppState, components::*, constants::*, resources::*};
 use bevy::{prelude::*, sprite::Anchor};
 
 pub struct HudPlugin;
@@ -34,7 +34,9 @@ fn update_hud_system(
     mut hud_query: Query<&mut HUD>,
     mut commands: Commands,
 ) {
-    let ship = ships_query.single();
+    let Ok(ship) = ships_query.single() else {
+        return;
+    };
     let new_hud = HUD {
         level: level.number(),
         score: score.value(),
@@ -46,17 +48,16 @@ fn update_hud_system(
         weapon_plasma_level: ship.weapon_plasma_level,
         changed: false,
     };
-    if hud_query.is_empty() {
-        commands.spawn(HUD {
-            changed: true,
-            ..new_hud
-        });
-    } else {
-        let mut hud = hud_query.single_mut();
+    if let Ok(mut hud) = hud_query.single_mut() {
         if *hud != new_hud {
             *hud = new_hud;
             hud.changed = true;
         }
+    } else {
+        commands.spawn(HUD {
+            changed: true,
+            ..new_hud
+        });
     }
 }
 
@@ -69,10 +70,9 @@ fn update_hud_text_system(
     //        but for some reasons that caused the HUD to sometimes not render at all
     //        Creating a new text bundle for every update and using the changed property
     //        for HUD is a workaround that seems to work.
-    if hud_query.is_empty() {
+    let Ok((entity, hud)) = hud_query.single_mut() else {
         return;
-    }
-    let (entity, hud) = hud_query.single_mut();
+    };
     if !hud.changed {
         return;
     }
@@ -99,7 +99,30 @@ fn update_hud_text_system(
         &weapons.join(" ")
     );
 
+    let font = asset_server.load("fonts/DejaVuSans.ttf");
     commands.entity(entity).despawn();
+    commands.spawn((
+        Text2d::new(hud_text),
+        TextColor(Color::WHITE),
+        TextFont {
+            font,
+            font_size: 20.0,
+            ..Default::default()
+        },
+        TextLayout::new_with_justify(JustifyText::Left),
+        Anchor::TopRight,
+        Transform::from_xyz(
+            -(GAME_WIDTH as f32) / 2.05,
+            (GAME_HEIGHT as f32) / 2.05,
+            -0.01,
+        ),
+        HUD {
+            changed: false,
+            ..*hud
+        },
+        LevelEntity,
+    ));
+    /*
     commands
         .spawn(Text2dBundle {
             text: Text {
@@ -127,4 +150,5 @@ fn update_hud_text_system(
             ..*hud
         })
         .insert(LevelEntity);
+        */
 }
