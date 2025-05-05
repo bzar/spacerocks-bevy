@@ -12,3 +12,6 @@ pub use ufo::UfoPlugin;
 
 mod highscore;
 pub use highscore::HighScorePlugin;
+
+mod music;
+pub use music::MusicPlugin;

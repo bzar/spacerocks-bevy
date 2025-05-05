@@ -39,6 +39,7 @@ fn main() {
             plugins::CameraPlugin,
             plugins::TitleScreenPlugin,
             plugins::HighScorePlugin,
+            plugins::MusicPlugin,
         ))
         .add_systems(
             Update,
