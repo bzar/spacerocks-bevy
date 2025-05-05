@@ -111,6 +111,15 @@ pub struct Moving {
     pub acceleration: Vec2,
 }
 
+impl Moving {
+    pub fn from_velocity(velocity: Vec2) -> Self {
+        Self {
+            velocity,
+            acceleration: Vec2::ZERO,
+        }
+    }
+}
+
 #[derive(Component)]
 pub struct Spinning {
     pub speed: f32,

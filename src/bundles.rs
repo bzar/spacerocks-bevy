@@ -1,5 +1,8 @@
 use crate::{components::*, constants::*, resources::*};
-use bevy::{prelude::*, sprite::Anchor};
+use bevy::{
+    prelude::*,
+    sprite::{Anchor, SpriteSystem},
+};
 
 pub fn powerup(
     powerup: Powerup,
@@ -23,10 +26,7 @@ pub fn powerup(
         Sprite::from_image(texture),
         transform,
         powerup,
-        Moving {
-            velocity,
-            acceleration: Vec2::ZERO,
-        },
+        Moving::from_velocity(velocity),
         CollisionShape::new(
             Shape::Circle {
                 center: Vec2::ZERO,
@@ -68,11 +68,8 @@ pub fn asteroid(
                 index: asteroid_texture_index(asteroid_variant, size),
             },
         ),
-        Transform::from_translation(position.extend(0.)),
-        Moving {
-            velocity,
-            ..Default::default()
-        },
+        Transform::from_translation(position.extend(0.1)),
+        Moving::from_velocity(velocity),
         Spinning {
             speed: spinning_speed,
         },
@@ -128,10 +125,7 @@ pub fn ship_projectile(
     (
         Sprite::from_image(texture),
         transform,
-        Moving {
-            velocity,
-            ..Default::default()
-        },
+        Moving::from_velocity(velocity),
         Wrapping,
         ship_projectile,
         Expiring { life },
@@ -154,9 +148,12 @@ pub fn ship_beam(
     max_length: f32,
 ) -> impl Bundle {
     (
-        Sprite::from_image(texture),
+        Sprite {
+            image: texture,
+            anchor: Anchor::BottomCenter,
+            ..Default::default()
+        },
         transform,
-        Anchor::BottomCenter,
         Beam {
             length,
             max_length,

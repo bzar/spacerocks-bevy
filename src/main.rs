@@ -74,6 +74,7 @@ fn main() {
                 ship_sprite,
                 ship_respawn_system,
                 shield_sprite,
+                beam_collision_shape_update_system,
                 collision_shape_system,
                 beam_sprite_system,
             )
@@ -288,28 +289,34 @@ fn load_level(
             lives: 3,
             ..Ship::default()
         };
-        commands
-            .spawn(bundles::ship(ship, sprite_sheets.as_ref()))
-            .with_children(|ship| {
-                ship.spawn(bundles::ship_shield(&sprite_sheets.ship));
-                let projectile = ShipProjectile::Beam { power: 20.0 };
-                let beam_from = Vec2::ZERO;
-                let length = 0.0;
-                let max_length = 0.0;
-                let texture = asset_server.load("img/continuous_beam.png");
-                let mut transform = Transform::from_xyz(0.0, 0.0, -0.01);
-                transform.scale.y = length / 128.0;
-                ship.spawn(bundles::ship_beam(
-                    projectile, texture, transform, beam_from, length, max_length,
-                ))
-                .with_children(|beam| {
-                    beam.spawn((
+        let beam_projectile = ShipProjectile::Beam { power: 20.0 };
+        let beam_from = Vec2::ZERO;
+        let beam_length = 0.0;
+        let beam_max_length = 0.0;
+        let beam_texture = asset_server.load("img/continuous_beam.png");
+        let mut beam_transform = Transform::from_xyz(0.0, 0.0, -0.01);
+        beam_transform.scale.y = beam_length / 128.0;
+        commands.spawn((
+            bundles::ship(ship, sprite_sheets.as_ref()),
+            children![
+                bundles::ship_shield(&sprite_sheets.ship),
+                (
+                    bundles::ship_beam(
+                        beam_projectile,
+                        beam_texture,
+                        beam_transform,
+                        beam_from,
+                        beam_length,
+                        beam_max_length,
+                    ),
+                    children![(
                         Sprite::from_image(asset_server.load("img/continuous_tip.png")),
                         Transform::from_xyz(0.0, 128.0, 0.0),
-                    ))
-                    .insert(BeamTip);
-                });
-            });
+                        BeamTip
+                    )]
+                )
+            ],
+        ));
     } else {
         for (mut transform, mut moving) in ships_query.iter_mut() {
             transform.translation = Vec3::ZERO;
@@ -435,13 +442,13 @@ fn ship_control_system(mut ship_query: Query<&mut Ship>, input: Res<input::Input
             _ => ShipTurn::Neutral,
         };
         ship.fire = input.fire;
-        if input.weapon_1 {
+        if input.weapon_1 && ship.weapon_rapid_level > 0 {
             ship.weapon = ShipWeapon::Rapid;
-        } else if input.weapon_2 {
+        } else if input.weapon_2 && ship.weapon_spread_level > 0 {
             ship.weapon = ShipWeapon::Spread;
-        } else if input.weapon_3 {
+        } else if input.weapon_3 && ship.weapon_beam_level > 0 {
             ship.weapon = ShipWeapon::Beam;
-        } else if input.weapon_4 {
+        } else if input.weapon_4 && ship.weapon_plasma_level > 0 {
             ship.weapon = ShipWeapon::Plasma;
         }
 
@@ -601,6 +608,14 @@ fn ship_physics(
     }
 }
 
+fn beam_collision_shape_update_system(mut query: Query<(&Beam, &mut CollisionShape)>) {
+    for (beam, mut collision_shape) in query.iter_mut() {
+        match collision_shape.shape {
+            Shape::Line { ref mut delta, .. } => *delta = Vec2::Y * beam.length,
+            _ => unimplemented!(),
+        }
+    }
+}
 fn beam_sprite_system(
     mut beam_query: Query<(&Beam, &mut Transform, &Children), Without<BeamTip>>,
     mut tip_query: Query<&mut Transform, With<BeamTip>>,

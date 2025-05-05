@@ -1,5 +1,5 @@
-use crate::{AppState, components::*, constants::*, resources::*};
-use bevy::{prelude::*, sprite::Anchor};
+use crate::{AppState, components::*, resources::*};
+use bevy::prelude::*;
 
 pub struct HudPlugin;
 impl Plugin for HudPlugin {
@@ -102,53 +102,27 @@ fn update_hud_text_system(
     let font = asset_server.load("fonts/DejaVuSans.ttf");
     commands.entity(entity).despawn();
     commands.spawn((
-        Text2d::new(hud_text),
-        TextColor(Color::WHITE),
+        Text::new(hud_text),
+        TextColor(Color::WHITE.with_alpha(0.7)),
+        TextShadow {
+            offset: Vec2::splat(1.0),
+            color: Color::BLACK,
+        },
         TextFont {
             font,
             font_size: 20.0,
             ..Default::default()
         },
-        TextLayout::new_with_justify(JustifyText::Left),
-        Anchor::TopRight,
-        Transform::from_xyz(
-            -(GAME_WIDTH as f32) / 2.05,
-            (GAME_HEIGHT as f32) / 2.05,
-            -0.01,
-        ),
+        Node {
+            position_type: PositionType::Absolute,
+            top: Val::Px(8.0),
+            right: Val::Px(8.0),
+            ..Default::default()
+        },
         HUD {
             changed: false,
             ..*hud
         },
         LevelEntity,
     ));
-    /*
-    commands
-        .spawn(Text2dBundle {
-            text: Text {
-                sections: vec![TextSection::new(
-                    hud_text,
-                    TextStyle {
-                        font: asset_server.load("fonts/DejaVuSans.ttf"),
-                        font_size: 20.0,
-                        color: Color::WHITE,
-                    },
-                )],
-                alignment: TextAlignment::Left,
-                ..default()
-            },
-            text_anchor: Anchor::TopRight,
-            transform: Transform::from_xyz(
-                -(GAME_WIDTH as f32) / 2.05,
-                (GAME_HEIGHT as f32) / 2.05,
-                -0.01,
-            ),
-            ..default()
-        })
-        .insert(HUD {
-            changed: false,
-            ..*hud
-        })
-        .insert(LevelEntity);
-        */
 }

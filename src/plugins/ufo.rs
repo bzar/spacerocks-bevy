@@ -365,10 +365,7 @@ pub fn ufo_laser(
             .with_rotation(Quat::from_rotation_z(rotation)),
         LevelEntity,
         UfoLaser,
-        Moving {
-            velocity,
-            ..Default::default()
-        },
+        Moving::from_velocity(velocity),
         Expiring { life },
         CollisionShape::new(
             Shape::Circle {
