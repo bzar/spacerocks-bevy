@@ -135,6 +135,7 @@ fn ufo_shoot_system(
     ships_query: Query<&Transform, With<Ship>>,
     sprite_sheets: Res<SpriteSheets>,
     time: Res<Time>,
+    sounds: Res<Sounds>,
 ) {
     if let Ok(ship_transform) = ships_query.single() {
         for (mut ufo, ufo_transform) in ufos_query.iter_mut() {
@@ -158,6 +159,7 @@ fn ufo_shoot_system(
                     velocity,
                     life,
                 ));
+                commands.spawn(bundles::sfx(sounds.ufo_shoot.clone()));
             }
         }
     }
@@ -167,6 +169,7 @@ fn ship_ufo_collision_system(
     sprite_sheets: Res<SpriteSheets>,
     mut ships_query: Query<(&mut Ship, &Transform, &CollisionShape)>,
     mut ufo_query: Query<(&mut Ufo, &CollisionShape), (With<Ufo>, Without<Ship>)>,
+    sounds: Res<Sounds>,
 ) {
     for (mut ship, ship_transform, ship_shape) in ships_query.iter_mut() {
         if ship.invulnerability > 0.0 {
@@ -188,6 +191,7 @@ fn ship_ufo_collision_system(
                         ship_position,
                         &sprite_sheets.particles,
                     ));
+                    commands.spawn(bundles::sfx(sounds.ship_explosion.clone()));
                 }
             }
         }
@@ -199,6 +203,7 @@ fn ship_ufo_laser_collision_system(
     mut ships_query: Query<(&mut Ship, &Transform, &mut Moving, &CollisionShape)>,
     ufo_laser_query: Query<(Entity, &Moving, &CollisionShape), (With<UfoLaser>, Without<Ship>)>,
     sprite_sheets: Res<SpriteSheets>,
+    sounds: Res<Sounds>,
 ) {
     for (mut ship, ship_transform, mut ship_moving, ship_collision_shape) in ships_query.iter_mut()
     {
@@ -219,6 +224,7 @@ fn ship_ufo_laser_collision_system(
                         ship_position,
                         &sprite_sheets.particles,
                     ));
+                    commands.spawn(bundles::sfx(sounds.ship_explosion.clone()));
                 }
             }
         }
@@ -235,6 +241,7 @@ fn ship_projectile_ufo_hit_system(
     )>,
     mut ufos: Query<(&mut Ufo, &Transform, &CollisionShape), Without<ShipProjectile>>,
     sprite_sheets: Res<SpriteSheets>,
+    sounds: Res<Sounds>,
 ) {
     for (
         projectile_entity,
@@ -246,6 +253,7 @@ fn ship_projectile_ufo_hit_system(
     {
         for (mut ufo, ufo_transform, ufo_shape) in ufos.iter_mut() {
             if ufo.life > 0 && projectile_shape.intersects(ufo_shape) {
+                commands.spawn(bundles::sfx(sounds.ufo_hit.clone()));
                 match *projectile {
                     ShipProjectile::Rapid | ShipProjectile::Spread => {
                         commands.entity(projectile_entity).despawn();
@@ -309,6 +317,7 @@ fn ufo_destroy_system(
     mut score: ResMut<Score>,
     sprite_sheets: Res<SpriteSheets>,
     asset_server: Res<AssetServer>,
+    sounds: Res<Sounds>,
 ) {
     for (ufo_entity, ufo, ufo_transform) in ufos_query.iter() {
         if ufo.life <= 0 {
@@ -332,6 +341,7 @@ fn ufo_destroy_system(
                 20.0,
                 1.0,
             ));
+            commands.spawn(bundles::sfx(sounds.ufo_explosion.clone()));
             commands.entity(ufo_entity).despawn();
         }
     }

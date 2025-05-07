@@ -32,6 +32,7 @@ fn main() {
         .insert_resource(SpriteSheets::default())
         .insert_resource(Level(0))
         .insert_resource(Score(0))
+        .insert_resource(Sounds::default())
         .insert_resource(LevelStartDelayTimer::default())
         .add_systems(Startup, init)
         .init_state::<AppState>()
@@ -116,12 +117,33 @@ fn loading(
     mut texture_atlases: ResMut<Assets<TextureAtlasLayout>>,
     mut next_state: ResMut<NextState<AppState>>,
     mut loading_text: Local<Option<Entity>>,
+    mut sounds: ResMut<Sounds>,
 ) {
     if loading_text.is_none() {
         let font = asset_server.load("fonts/DejaVuSans.ttf");
         *loading_text = Some(commands.spawn(bundles::loading_text(font)).id());
     }
 
+    *sounds = Sounds {
+        ship_explosion: asset_server.load("snd/sfx/explosion2.ogg"),
+        rapid: asset_server.load("snd/sfx/weaponfire6.ogg"),
+        spread: asset_server.load("snd/sfx/weaponfire5.ogg"),
+        plasma: asset_server.load("snd/sfx/weaponfire4.ogg"),
+        engine: asset_server.load("snd/sfx/enginehum3.ogg"),
+        ufo_shoot: asset_server.load("snd/sfx/weaponfire9.ogg"),
+        ufo_hit: asset_server.load("snd/sfx/weaponfire3.ogg"),
+        ufo_explosion: asset_server.load("snd/sfx/explosion1.ogg"),
+        title_1: asset_server.load("snd/sfx/weaponfire17.ogg"),
+        title_2: asset_server.load("snd/sfx/weaponfire2.ogg"),
+        title_3: asset_server.load("snd/sfx/explosion1.ogg"),
+        powerup: asset_server.load("snd/sfx/weapon1probl.ogg"),
+        extralife: asset_server.load("snd/sfx/game_showmenu.ogg"),
+        loselife: asset_server.load("snd/sfx/game_hidemenu.ogg"),
+        shield: asset_server.load("snd/sfx/antimaterhit.ogg"),
+        asteroid_hit: asset_server.load("snd/sfx/explosion4.ogg"),
+        asteroid_destroy: asset_server.load("snd/sfx/explosion2.ogg"),
+        asteroid_destroy_small: asset_server.load("snd/sfx/explosion4.ogg"),
+    };
     if asset_server
         .get_recursive_dependency_load_state(&sprite_sheets.load_state)
         .is_none_or(|state| state.is_loaded())
@@ -250,6 +272,7 @@ fn load_level(
     level: Res<Level>,
     mut ships_query: Query<(&mut Transform, &mut Moving), With<Ship>>,
     mut level_start_delay_timer: ResMut<LevelStartDelayTimer>,
+    sounds: Res<Sounds>,
 ) {
     println!("setup level {}", level.number());
 
@@ -298,7 +321,7 @@ fn load_level(
         let mut beam_transform = Transform::from_xyz(0.0, 0.0, -0.01);
         beam_transform.scale.y = beam_length / 128.0;
         commands.spawn((
-            bundles::ship(ship, sprite_sheets.as_ref()),
+            bundles::ship(ship, sprite_sheets.as_ref(), &sounds),
             children![
                 bundles::ship_shield(&sprite_sheets.ship),
                 (
@@ -465,19 +488,25 @@ fn ship_control_system(mut ship_query: Query<&mut Ship>, input: Res<input::Input
 fn ship_physics(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
-    mut ship_query: Query<(&mut Ship, &mut Moving, &mut Transform)>,
+    mut ship_query: Query<(&mut Ship, &mut Moving, &mut Transform, &AudioSink)>,
     mut beam_query: Query<&mut Beam, Without<Ship>>,
     time: Res<Time>,
+    sounds: Res<Sounds>,
 ) {
     let time_delta = time.delta().as_secs_f32();
 
-    for (mut ship, mut moving, mut transform) in ship_query.iter_mut() {
+    for (mut ship, mut moving, mut transform, engine_hum) in ship_query.iter_mut() {
         ship.invulnerability = (ship.invulnerability - time_delta).max(0.);
         let angular_velocity = match ship.turn {
             ShipTurn::Neutral => 0.0,
             ShipTurn::Left => 3.0,
             ShipTurn::Right => -3.0,
         };
+        if ship.throttle && engine_hum.is_paused() {
+            engine_hum.play();
+        } else if !ship.throttle && !engine_hum.is_paused() {
+            engine_hum.pause();
+        }
         let acceleration = if ship.throttle { 50.0 } else { 0.0 };
         transform.rotation *= Quat::from_rotation_z(angular_velocity * time_delta);
         moving.acceleration = (transform.rotation * Vec3::Y * acceleration).truncate();
@@ -522,6 +551,7 @@ fn ship_physics(
                         0.25,
                         1.0,
                     ));
+                    commands.spawn(bundles::sfx(sounds.rapid.clone()));
                     ship.weapon_cooldown =
                         lerp(0.3, 0.05, (ship.weapon_rapid_level - 1) as f32 / 8.0);
                 }
@@ -549,6 +579,7 @@ fn ship_physics(
                             0.20,
                             1.0,
                         ));
+                        commands.spawn(bundles::sfx(sounds.spread.clone()));
                     }
                     ship.weapon_cooldown =
                         lerp(0.8, 0.3, (ship.weapon_spread_level - 1) as f32 / 8.0);
@@ -571,6 +602,7 @@ fn ship_physics(
                     commands.spawn(bundles::ship_projectile(
                         projectile, texture, velocity, transform, 0.5, power,
                     ));
+                    commands.spawn(bundles::sfx(sounds.plasma.clone()));
                     ship.weapon_cooldown =
                         lerp(1.2, 0.8, (ship.weapon_plasma_level - 1) as f32 / 8.0);
                 }
@@ -667,6 +699,7 @@ fn ship_projectile_asteroid_hit_system(
     )>,
     mut asteroids: Query<(&mut Asteroid, &CollisionShape, &Transform), Without<ShipProjectile>>,
     sprite_sheets: Res<SpriteSheets>,
+    sounds: Res<Sounds>,
 ) {
     for (
         projectile_entity,
@@ -678,6 +711,7 @@ fn ship_projectile_asteroid_hit_system(
     {
         for (mut asteroid, asteroid_shape, asteroid_transform) in asteroids.iter_mut() {
             if projectile_shape.intersects(asteroid_shape) {
+                commands.spawn(bundles::sfx(sounds.asteroid_hit.clone()));
                 match *projectile {
                     ShipProjectile::Rapid | ShipProjectile::Spread => {
                         commands.entity(projectile_entity).despawn();
@@ -769,6 +803,7 @@ fn asteroid_split_system(
     mut score: ResMut<Score>,
     level: Res<Level>,
     asset_server: Res<AssetServer>,
+    sounds: Res<Sounds>,
 ) {
     for (asteroid_entity, asteroid, transform) in asteroids.iter() {
         if asteroid.integrity <= 0 {
@@ -786,6 +821,11 @@ fn asteroid_split_system(
                 asteroid.size.radius() / AsteroidSize::Large.radius(),
                 &sprite_sheets.particles,
             ));
+            if asteroid.size >= AsteroidSize::Medium {
+                commands.spawn(bundles::sfx(sounds.asteroid_destroy.clone()));
+            } else {
+                commands.spawn(bundles::sfx(sounds.asteroid_destroy_small.clone()));
+            }
             commands.entity(asteroid_entity).despawn();
             if let Some(size) = asteroid.size.smaller() {
                 let direction = (transform.rotation * transform.translation)
@@ -877,6 +917,7 @@ fn ship_powerup_collision_system(
     powerups_query: Query<(Entity, &Powerup, &CollisionShape)>,
     asset_server: Res<AssetServer>,
     sprite_sheets: Res<SpriteSheets>,
+    sounds: Res<Sounds>,
 ) {
     for (mut ship, ship_shape, transform) in ships_query.iter_mut() {
         for (powerup_entity, powerup, powerup_shape) in powerups_query.iter() {
@@ -911,6 +952,21 @@ fn ship_powerup_collision_system(
                         "Shield +1"
                     }
                 };
+
+                match powerup {
+                    Powerup::Laser | Powerup::Spread | Powerup::Beam | Powerup::Plasma => {
+                        commands.spawn(bundles::sfx(sounds.powerup.clone()));
+                    }
+                    Powerup::ExtraLife => {
+                        commands.spawn(bundles::sfx(sounds.extralife.clone()));
+                    }
+                    Powerup::LoseLife => {
+                        commands.spawn(bundles::sfx(sounds.loselife.clone()));
+                    }
+                    Powerup::Shield => {
+                        commands.spawn(bundles::sfx(sounds.shield.clone()));
+                    }
+                };
                 commands.entity(powerup_entity).despawn();
                 let position = transform.translation.truncate();
                 commands.spawn(bundles::game_notification(
@@ -931,6 +987,7 @@ fn ship_asteroid_collision_system(
     sprite_sheets: Res<SpriteSheets>,
     mut ships_query: Query<(&mut Ship, &Transform, &mut Moving, &CollisionShape)>,
     asteroids_query: Query<(&Transform, &Moving, &CollisionShape), (With<Asteroid>, Without<Ship>)>,
+    sounds: Res<Sounds>,
 ) {
     for (mut ship, ship_transform, mut ship_moving, ship_shape) in ships_query.iter_mut() {
         if ship.invulnerability > 0.0 {
@@ -961,6 +1018,7 @@ fn ship_asteroid_collision_system(
                         ship_position,
                         &sprite_sheets.particles,
                     ));
+                    commands.spawn(bundles::sfx(sounds.ship_explosion.clone()));
                 }
             }
         }

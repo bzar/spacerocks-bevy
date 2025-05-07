@@ -1,6 +1,6 @@
 use crate::AppState;
+use crate::resources::Sounds;
 use bevy::prelude::*;
-
 #[derive(Component)]
 pub struct TitleEntity;
 
@@ -19,10 +19,14 @@ pub struct TitleStart {
     elapsed: f32,
 }
 
-fn init_title(mut commands: Commands, asset_server: Res<AssetServer>) {
+fn init_title(mut commands: Commands, asset_server: Res<AssetServer>, sounds: Res<Sounds>) {
     commands.spawn((
         Sprite::from_image(asset_server.load("img/title-background.png")),
         TitleEntity,
+    ));
+    commands.spawn((
+        AudioPlayer(sounds.title_1.clone()),
+        PlaybackSettings::DESPAWN,
     ));
 
     commands.spawn((
@@ -35,6 +39,11 @@ fn init_title(mut commands: Commands, asset_server: Res<AssetServer>) {
             at: 1.0,
             duration: 0.5,
             elapsed: 0.0,
+        },
+        AudioPlayer(sounds.title_2.clone()),
+        PlaybackSettings {
+            paused: true,
+            ..Default::default()
         },
     ));
 
@@ -49,6 +58,11 @@ fn init_title(mut commands: Commands, asset_server: Res<AssetServer>) {
             duration: 0.5,
             elapsed: 0.0,
         },
+        AudioPlayer(sounds.title_2.clone()),
+        PlaybackSettings {
+            paused: true,
+            ..Default::default()
+        },
     ));
 
     commands.spawn((
@@ -61,6 +75,11 @@ fn init_title(mut commands: Commands, asset_server: Res<AssetServer>) {
             at: 2.2,
             duration: 0.3,
             elapsed: 0.0,
+        },
+        AudioPlayer(sounds.title_3.clone()),
+        PlaybackSettings {
+            paused: true,
+            ..Default::default()
         },
     ));
 
@@ -85,10 +104,15 @@ fn title_input(
     }
 }
 fn title_text_system(
-    mut title_text_query: Query<(&mut TitleText, &mut Transform, &mut Visibility)>,
+    mut title_text_query: Query<(
+        &mut TitleText,
+        &mut Transform,
+        &mut Visibility,
+        Option<&AudioSink>,
+    )>,
     time: Res<Time>,
 ) {
-    for (mut text, mut transform, mut visibility) in title_text_query.iter_mut() {
+    for (mut text, mut transform, mut visibility, sound) in title_text_query.iter_mut() {
         text.elapsed += time.delta_secs();
         *visibility = if text.elapsed >= text.at {
             Visibility::Visible
@@ -97,6 +121,12 @@ fn title_text_system(
         };
         let t = (text.elapsed - text.at).clamp(0.0, text.duration) / text.duration;
         transform.translation = text.from.lerp(text.to, t).extend(0.01);
+
+        if t >= 1.0 {
+            if let Some(s) = sound {
+                s.play();
+            }
+        }
     }
 }
 fn title_start_system(

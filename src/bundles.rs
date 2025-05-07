@@ -1,8 +1,5 @@
 use crate::{components::*, constants::*, resources::*};
-use bevy::{
-    prelude::*,
-    sprite::{Anchor, SpriteSystem},
-};
+use bevy::{prelude::*, sprite::Anchor};
 
 pub fn powerup(
     powerup: Powerup,
@@ -90,7 +87,7 @@ pub fn asteroid(
     )
 }
 
-pub fn ship(ship: Ship, sprite_sheets: &SpriteSheets) -> impl Bundle {
+pub fn ship(ship: Ship, sprite_sheets: &SpriteSheets, sounds: &Sounds) -> impl Bundle {
     (
         Sprite::from_image(sprite_sheets.ship.choose(&ship)),
         Moving::default(),
@@ -103,6 +100,12 @@ pub fn ship(ship: Ship, sprite_sheets: &SpriteSheets) -> impl Bundle {
             },
             Transform::default(),
         ),
+        AudioPlayer(sounds.engine.clone()),
+        PlaybackSettings {
+            mode: bevy::audio::PlaybackMode::Loop,
+            paused: true,
+            ..Default::default()
+        },
     )
 }
 
@@ -331,4 +334,8 @@ pub fn spark_particle(
             elapsed: 0.0,
         },
     )
+}
+
+pub fn sfx(source: Handle<AudioSource>) -> impl Bundle {
+    (AudioPlayer(source), PlaybackSettings::DESPAWN)
 }

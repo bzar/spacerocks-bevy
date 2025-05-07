@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use crate::constants::SHIP_RESPAWN_DELAY;
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
 pub enum AsteroidSize {
     Tiny = 0,
     Small,

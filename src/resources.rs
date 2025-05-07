@@ -80,6 +80,28 @@ pub struct Level(pub u32);
 #[derive(Default, Resource)]
 pub struct Score(pub u32);
 
+#[derive(Default, Resource)]
+pub struct Sounds {
+    pub ship_explosion: Handle<AudioSource>,
+    pub rapid: Handle<AudioSource>,
+    pub spread: Handle<AudioSource>,
+    pub plasma: Handle<AudioSource>,
+    pub engine: Handle<AudioSource>,
+    pub ufo_shoot: Handle<AudioSource>,
+    pub ufo_hit: Handle<AudioSource>,
+    pub ufo_explosion: Handle<AudioSource>,
+    pub title_1: Handle<AudioSource>,
+    pub title_2: Handle<AudioSource>,
+    pub title_3: Handle<AudioSource>,
+    pub powerup: Handle<AudioSource>,
+    pub extralife: Handle<AudioSource>,
+    pub loselife: Handle<AudioSource>,
+    pub shield: Handle<AudioSource>,
+    pub asteroid_hit: Handle<AudioSource>,
+    pub asteroid_destroy: Handle<AudioSource>,
+    pub asteroid_destroy_small: Handle<AudioSource>,
+}
+
 impl ShipImages {
     pub fn choose(&self, ship: &Ship) -> Handle<Image> {
         use {ShipTurn::*, ShipWeapon::*};
