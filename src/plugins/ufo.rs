@@ -328,7 +328,7 @@ fn ufo_destroy_system(
                 random(),
                 position,
                 velocity,
-                5.0,
+                10.0,
                 &sprite_sheets.powerup,
             ));
             commands.spawn(bundles::explosion(&sprite_sheets.explosion, position));

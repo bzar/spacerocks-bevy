@@ -149,6 +149,7 @@ pub fn ship_beam(
     base: Vec2,
     length: f32,
     max_length: f32,
+    sounds: &Sounds,
 ) -> impl Bundle {
     (
         Sprite {
@@ -173,6 +174,12 @@ pub fn ship_beam(
             },
             Transform::from_translation(base.extend(0.)),
         ),
+        AudioPlayer(sounds.beam.clone()),
+        PlaybackSettings {
+            mode: bevy::audio::PlaybackMode::Loop,
+            paused: true,
+            ..Default::default()
+        },
     )
 }
 

@@ -85,6 +85,7 @@ pub struct Sounds {
     pub ship_explosion: Handle<AudioSource>,
     pub rapid: Handle<AudioSource>,
     pub spread: Handle<AudioSource>,
+    pub beam: Handle<AudioSource>,
     pub plasma: Handle<AudioSource>,
     pub engine: Handle<AudioSource>,
     pub ufo_shoot: Handle<AudioSource>,

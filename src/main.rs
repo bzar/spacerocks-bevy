@@ -128,6 +128,7 @@ fn loading(
         ship_explosion: asset_server.load("snd/sfx/explosion2.ogg"),
         rapid: asset_server.load("snd/sfx/weaponfire6.ogg"),
         spread: asset_server.load("snd/sfx/weaponfire5.ogg"),
+        beam: asset_server.load("snd/sfx/weaponfire11-trimmed.ogg"),
         plasma: asset_server.load("snd/sfx/weaponfire4.ogg"),
         engine: asset_server.load("snd/sfx/enginehum3.ogg"),
         ufo_shoot: asset_server.load("snd/sfx/weaponfire9.ogg"),
@@ -332,6 +333,7 @@ fn load_level(
                         beam_from,
                         beam_length,
                         beam_max_length,
+                        &sounds
                     ),
                     children![(
                         Sprite::from_image(asset_server.load("img/continuous_tip.png")),
@@ -489,7 +491,7 @@ fn ship_physics(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut ship_query: Query<(&mut Ship, &mut Moving, &mut Transform, &AudioSink)>,
-    mut beam_query: Query<&mut Beam, Without<Ship>>,
+    mut beam_query: Query<(&mut Beam, &AudioSink), Without<Ship>>,
     time: Res<Time>,
     sounds: Res<Sounds>,
 ) {
@@ -607,7 +609,7 @@ fn ship_physics(
                         lerp(1.2, 0.8, (ship.weapon_plasma_level - 1) as f32 / 8.0);
                 }
                 ShipWeapon::Beam => {
-                    for mut beam in beam_query.iter_mut() {
+                    for (mut beam, sound) in beam_query.iter_mut() {
                         beam.active = true;
                         beam.sustained += time_delta;
                         if beam.sustained > BEAM_EXTEND_TIME {
@@ -621,11 +623,13 @@ fn ship_physics(
                         } else {
                             beam.cooldown -= time_delta;
                         }
+                        sound.play()
                     }
                 }
             }
         } else if matches!(ship.weapon, ShipWeapon::Beam) {
-            for mut beam in beam_query.iter_mut() {
+            for (mut beam, sound) in beam_query.iter_mut() {
+                sound.pause();
                 beam.active = false;
                 if beam.length > 0.0 {
                     beam.length = (beam.length - time_delta * BEAM_RETRACT_RATE).max(0.0);
@@ -711,13 +715,13 @@ fn ship_projectile_asteroid_hit_system(
     {
         for (mut asteroid, asteroid_shape, asteroid_transform) in asteroids.iter_mut() {
             if projectile_shape.intersects(asteroid_shape) {
-                commands.spawn(bundles::sfx(sounds.asteroid_hit.clone()));
                 match *projectile {
                     ShipProjectile::Rapid | ShipProjectile::Spread => {
                         commands.entity(projectile_entity).despawn();
                         if asteroid.integrity > 0 {
                             asteroid.integrity -= 1;
                         }
+                        commands.spawn(bundles::sfx(sounds.asteroid_hit.clone()));
                     }
                     ShipProjectile::Plasma { mut power } => {
                         let overlap = -projectile_shape.distance(asteroid_shape).min(0.0);
@@ -738,6 +742,7 @@ fn ship_projectile_asteroid_hit_system(
                         if asteroid.integrity > 0 {
                             asteroid.integrity -= effect.ceil() as i32;
                         }
+                        commands.spawn(bundles::sfx(sounds.asteroid_hit.clone()));
                     }
                     ShipProjectile::Beam { .. } => {
                         if let Some(ref mut beam) = maybe_beam {
@@ -748,6 +753,7 @@ fn ship_projectile_asteroid_hit_system(
                                 if beam.cooldown <= 0.0 {
                                     asteroid.integrity -= BEAM_DAMAGE_PER_HIT;
                                     beam.cooldown = BEAM_HIT_INTERVAL;
+                                    commands.spawn(bundles::sfx(sounds.asteroid_hit.clone()));
                                 }
                             }
                         }
