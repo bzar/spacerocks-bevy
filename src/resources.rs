@@ -103,6 +103,10 @@ pub struct Sounds {
     pub asteroid_destroy_small: Handle<AudioSource>,
 }
 
+#[derive(Default, Resource)]
+pub struct Mute {
+    pub enabled: bool,
+}
 impl ShipImages {
     pub fn choose(&self, ship: &Ship) -> Handle<Image> {
         use {ShipTurn::*, ShipWeapon::*};

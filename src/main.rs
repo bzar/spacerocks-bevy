@@ -1,6 +1,6 @@
 use std::f32::consts::TAU;
 
-use bevy::prelude::*;
+use bevy::{audio::Volume, prelude::*};
 use rand::{Rng, random};
 
 mod bundles;
@@ -33,6 +33,7 @@ fn main() {
         .insert_resource(Level(0))
         .insert_resource(Score(0))
         .insert_resource(Sounds::default())
+        .insert_resource(Mute { enabled: true })
         .insert_resource(LevelStartDelayTimer::default())
         .add_systems(Startup, init)
         .init_state::<AppState>()
@@ -52,6 +53,7 @@ fn main() {
                 scaling_system,
                 fading_system,
                 animation_system,
+                mute_system,
             ),
         )
         .add_systems(Update, loading.run_if(in_state(AppState::Loading)))
@@ -314,7 +316,7 @@ fn load_level(
             lives: 3,
             ..Ship::default()
         };
-        let beam_projectile = ShipProjectile::Beam { power: 20.0 };
+        let beam_projectile = ShipProjectile::Beam;
         let beam_from = Vec2::ZERO;
         let beam_length = 0.0;
         let beam_max_length = 0.0;
@@ -1073,6 +1075,24 @@ fn cheat_system(keyboard_input: Res<ButtonInput<KeyCode>>, mut ship_query: Query
         }
         if keyboard_input.just_pressed(KeyCode::F6) {
             ship.lives += 1;
+        }
+    }
+}
+
+fn mute_system(
+    mut sinks: Query<&mut AudioSink>,
+    mute: Res<resources::Mute>,
+    mut global_volume: ResMut<GlobalVolume>,
+) {
+    if mute.enabled {
+        global_volume.volume = Volume::SILENT;
+        for mut sink in sinks.iter_mut() {
+            sink.set_volume(Volume::SILENT);
+        }
+    } else {
+        global_volume.volume = Volume::Linear(1.0);
+        for mut sink in sinks.iter_mut() {
+            sink.set_volume(Volume::Linear(1.0));
         }
     }
 }

@@ -1,5 +1,7 @@
 use bevy::prelude::*;
 
+use crate::resources::Mute;
+
 #[derive(Resource, Default)]
 pub struct InputState {
     pub left: bool,
@@ -21,6 +23,7 @@ pub fn update_input_state(
     mut state: ResMut<InputState>,
     keyboard: Res<ButtonInput<KeyCode>>,
     gamepads: Query<&Gamepad>,
+    mut mute: ResMut<Mute>,
 ) {
     state.left = keyboard.pressed(KeyCode::KeyA);
     state.right = keyboard.pressed(KeyCode::KeyD);
@@ -51,5 +54,9 @@ pub fn update_input_state(
             || gamepad.just_pressed(GamepadButton::RightTrigger);
         state.weapon_next |= gamepad.pressed(GamepadButton::RightTrigger2);
         state.weapon_prev |= gamepad.pressed(GamepadButton::LeftTrigger2);
+    }
+
+    if keyboard.just_pressed(KeyCode::KeyM) {
+        mute.enabled = !mute.enabled;
     }
 }

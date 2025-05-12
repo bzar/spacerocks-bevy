@@ -47,7 +47,7 @@ pub enum ShipWeapon {
 pub enum ShipProjectile {
     Rapid,
     Spread,
-    Beam { power: f32 },
+    Beam,
     Plasma { power: f32 },
 }
 
